@@ -30,6 +30,7 @@ function App() {
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/requests" element={<ServiceRequests />} />
             <Route path="/locations" element={<Locations />} />
+            <Route path="/documents" element={<Documents />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
