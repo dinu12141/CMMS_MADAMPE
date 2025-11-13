@@ -1,53 +1,40 @@
-import { useEffect } from "react";
-import "@/App.css";
+import React from "react";
+import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+import Sidebar from "./components/Sidebar";
+import Dashboard from "./pages/Dashboard";
+import WorkOrders from "./pages/WorkOrders";
+import Assets from "./pages/Assets";
+import PreventiveMaintenance from "./pages/PreventiveMaintenance";
+import Inventory from "./pages/Inventory";
+import ServiceRequests from "./pages/ServiceRequests";
+import Locations from "./pages/Locations";
+import Analytics from "./pages/Analytics";
+import Settings from "./pages/Settings";
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <BrowserRouter>
+      <div className="flex min-h-screen bg-slate-50">
+        {/* Sidebar */}
+        <Sidebar />
+        
+        {/* Main Content */}
+        <div className="flex-1 ml-64">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/work-orders" element={<WorkOrders />} />
+            <Route path="/assets" element={<Assets />} />
+            <Route path="/preventive-maintenance" element={<PreventiveMaintenance />} />
+            <Route path="/inventory" element={<Inventory />} />
+            <Route path="/requests" element={<ServiceRequests />} />
+            <Route path="/locations" element={<Locations />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/settings" element={<Settings />} />
+          </Routes>
+        </div>
+      </div>
+    </BrowserRouter>
   );
 }
 
