@@ -10,7 +10,8 @@ import {
   FileText, 
   BarChart3, 
   Settings,
-  Wrench
+  Wrench,
+  FolderOpen
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -22,6 +23,7 @@ const Sidebar = () => {
     { path: '/inventory', icon: Box, label: 'Inventory' },
     { path: '/requests', icon: FileText, label: 'Service Requests' },
     { path: '/locations', icon: MapPin, label: 'Locations' },
+    { path: '/documents', icon: FolderOpen, label: 'Documents' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/settings', icon: Settings, label: 'Settings' }
   ];
