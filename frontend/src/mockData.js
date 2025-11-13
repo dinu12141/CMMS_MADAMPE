@@ -494,6 +494,121 @@ export const users = [
   }
 ];
 
+export const documents = [
+  {
+    id: 'DOC-001',
+    name: 'HVAC Unit A1 Service Manual',
+    description: 'Complete service and maintenance manual for Carrier AquaEdge 19DV HVAC system',
+    category: 'manual',
+    fileType: 'pdf',
+    fileSize: 5242880,
+    relatedTo: 'ASSET-001',
+    relatedType: 'asset',
+    uploadedBy: 'Sarah Johnson',
+    uploadedDate: '2020-04-01T10:00:00Z',
+    expiryDate: null,
+    tags: ['hvac', 'manual', 'carrier']
+  },
+  {
+    id: 'DOC-002',
+    name: 'Water Pump Installation Certificate',
+    description: 'Installation and commissioning certificate for Water Pump P-101',
+    category: 'certificate',
+    fileType: 'pdf',
+    fileSize: 1048576,
+    relatedTo: 'ASSET-005',
+    relatedType: 'asset',
+    uploadedBy: 'Mike Chen',
+    uploadedDate: '2019-07-05T14:30:00Z',
+    expiryDate: '2024-07-05T23:59:59Z',
+    tags: ['certificate', 'pump', 'installation']
+  },
+  {
+    id: 'DOC-003',
+    name: 'Safety Inspection Report - Q4 2024',
+    description: 'Quarterly safety inspection report for all equipment',
+    category: 'report',
+    fileType: 'pdf',
+    fileSize: 2097152,
+    relatedTo: null,
+    relatedType: null,
+    uploadedBy: 'Sarah Johnson',
+    uploadedDate: '2024-12-28T16:00:00Z',
+    expiryDate: null,
+    tags: ['safety', 'inspection', 'report', 'quarterly']
+  },
+  {
+    id: 'DOC-004',
+    name: 'Preventive Maintenance Procedures',
+    description: 'Standard operating procedures for preventive maintenance tasks',
+    category: 'procedure',
+    fileType: 'docx',
+    fileSize: 524288,
+    relatedTo: null,
+    relatedType: null,
+    uploadedBy: 'Sarah Johnson',
+    uploadedDate: '2024-01-10T09:00:00Z',
+    expiryDate: null,
+    tags: ['procedure', 'preventive', 'maintenance', 'sop']
+  },
+  {
+    id: 'DOC-005',
+    name: 'Conveyor Belt Inspection Photos',
+    description: 'Photos from recent conveyor belt inspection showing belt condition',
+    category: 'photo',
+    fileType: 'jpg',
+    fileSize: 3145728,
+    relatedTo: 'WO-003',
+    relatedType: 'workorder',
+    uploadedBy: 'John Smith',
+    uploadedDate: '2025-01-14T15:45:00Z',
+    expiryDate: null,
+    tags: ['inspection', 'photo', 'conveyor']
+  },
+  {
+    id: 'DOC-006',
+    name: 'Air Compressor Warranty Document',
+    description: 'Warranty documentation for Atlas Copco GA 37 air compressor',
+    category: 'warranty',
+    fileType: 'pdf',
+    fileSize: 1572864,
+    relatedTo: 'ASSET-008',
+    relatedType: 'asset',
+    uploadedBy: 'Sarah Johnson',
+    uploadedDate: '2018-10-15T11:00:00Z',
+    expiryDate: '2023-10-15T23:59:59Z',
+    tags: ['warranty', 'compressor', 'atlas copco']
+  },
+  {
+    id: 'DOC-007',
+    name: 'Emergency Response Procedures',
+    description: 'Emergency shutdown and response procedures for all critical equipment',
+    category: 'procedure',
+    fileType: 'pdf',
+    fileSize: 786432,
+    relatedTo: null,
+    relatedType: null,
+    uploadedBy: 'Sarah Johnson',
+    uploadedDate: '2024-06-15T10:00:00Z',
+    expiryDate: null,
+    tags: ['emergency', 'procedure', 'safety']
+  },
+  {
+    id: 'DOC-008',
+    name: 'Maintenance Cost Analysis 2024',
+    description: 'Annual maintenance cost analysis and budget report',
+    category: 'report',
+    fileType: 'xlsx',
+    fileSize: 1310720,
+    relatedTo: null,
+    relatedType: null,
+    uploadedBy: 'Sarah Johnson',
+    uploadedDate: '2025-01-05T13:00:00Z',
+    expiryDate: null,
+    tags: ['report', 'cost', 'budget', 'analysis']
+  }
+];
+
 export const analytics = {
   workOrderStats: {
     total: 156,
