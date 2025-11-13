@@ -9,6 +9,7 @@ import PreventiveMaintenance from "./pages/PreventiveMaintenance";
 import Inventory from "./pages/Inventory";
 import ServiceRequests from "./pages/ServiceRequests";
 import Locations from "./pages/Locations";
+import Documents from "./pages/Documents";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 
