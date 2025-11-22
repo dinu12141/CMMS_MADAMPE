@@ -10,8 +10,78 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { analytics } from '../mockData';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
 
 const Analytics = () => {
+  // Format cost trends data for the chart
+  const costTrendsData = analytics.costTrends.map(trend => ({
+    ...trend,
+    formattedCost: `LKR ${(trend.cost / 1000).toFixed(1)}k`
+  }));
+  
+  // Calculate percentage change for trend indicators
+  const calculateTrend = (current, previous) => {
+    if (!previous) return 0;
+    return ((current - previous) / previous * 100).toFixed(1);
+  };
+  
+  // Get the last two months for trend calculation
+  const lastTwoMonths = analytics.costTrends.slice(-2);
+  const trendPercentage = lastTwoMonths.length === 2 ? 
+    calculateTrend(lastTwoMonths[1].cost, lastTwoMonths[0].cost) : 0;
+
+  // Custom tooltip for the cost trends chart
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-lg">
+          <p className="font-bold text-slate-900">{label}</p>
+          <p className="text-sm text-slate-600">
+            Cost: <span className="font-bold text-blue-600">LKR {payload[0].value.toLocaleString()}</span>
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            {payload[0].payload.formattedCost}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Custom dot for the line chart
+  const CustomDot = (props) => {
+    const { cx, cy, payload } = props;
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={6} fill="#3B82F6" stroke="#fff" strokeWidth={2} />
+        <text 
+          x={cx} 
+          y={cy - 15} 
+          textAnchor="middle" 
+          fill="#374151" 
+          fontSize={12} 
+          fontWeight="bold"
+        >
+          {payload.formattedCost}
+        </text>
+      </g>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Header 
@@ -33,27 +103,50 @@ const Analytics = () => {
             <CardTitle>Maintenance Cost Trends</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-80">
-              <div className="flex items-end justify-between h-full gap-2">
-                {analytics.costTrends.map((trend, index) => {
-                  const maxCost = Math.max(...analytics.costTrends.map(t => t.cost));
-                  const heightPercent = (trend.cost / maxCost) * 100;
-                  
-                  return (
-                    <div key={index} className="flex-1 flex flex-col items-center">
-                      <div className="w-full flex flex-col justify-end h-full">
-                        <div className="text-center mb-2">
-                          <p className="text-sm font-bold text-slate-900">${(trend.cost / 1000).toFixed(1)}k</p>
-                        </div>
-                        <div 
-                          className="w-full bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-lg transition-all duration-500 hover:from-blue-700 hover:to-blue-500 cursor-pointer"
-                          style={{ height: `${heightPercent}%` }}
-                        ></div>
-                      </div>
-                      <p className="text-sm text-slate-600 mt-2 font-medium">{trend.month}</p>
-                    </div>
-                  );
-                })}
+            <div className="h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={costTrendsData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 30 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis 
+                    dataKey="month" 
+                    stroke="#64748b" 
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis 
+                    stroke="#64748b" 
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => `LKR ${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="cost"
+                    stroke="#3B82F6"
+                    strokeWidth={3}
+                    dot={<CustomDot />}
+                    activeDot={{ r: 8, stroke: '#fff', strokeWidth: 2 }}
+                    name="Maintenance Cost"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-slate-600">Current Month Cost</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  LKR {analytics.costTrends[analytics.costTrends.length - 1].cost.toLocaleString()}
+                </p>
+              </div>
+              <div className="flex items-center">
+                <TrendingUp className={`w-5 h-5 mr-1 ${trendPercentage >= 0 ? 'text-green-500' : 'text-red-500'}`} />
+                <span className={`font-bold ${trendPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {trendPercentage >= 0 ? '+' : ''}{trendPercentage}%
+                </span>
+                <span className="text-sm text-slate-600 ml-1">from previous month</span>
               </div>
             </div>
           </CardContent>
@@ -200,7 +293,7 @@ const Analytics = () => {
                 </div>
                 <div>
                   <p className="text-sm text-slate-600">Total Maintenance Cost</p>
-                  <p className="text-2xl font-bold text-slate-900">${analytics.thisMonth.totalCost.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-slate-900">LKR {analytics.thisMonth.totalCost.toLocaleString()}</p>
                   <p className="text-xs text-green-600 mt-1">This month</p>
                 </div>
               </div>
@@ -215,7 +308,7 @@ const Analytics = () => {
                 </div>
                 <div>
                   <p className="text-sm text-slate-600">Avg Cost per WO</p>
-                  <p className="text-2xl font-bold text-slate-900">$768</p>
+                  <p className="text-2xl font-bold text-slate-900">LKR 768</p>
                   <p className="text-xs text-green-600 mt-1">-5% from last month</p>
                 </div>
               </div>

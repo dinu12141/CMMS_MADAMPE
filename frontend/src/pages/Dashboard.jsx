@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import StatCard from '../components/StatCard';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -13,8 +13,61 @@ import {
   Clock
 } from 'lucide-react';
 import { analytics, workOrders } from '../mockData';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const Dashboard = () => {
+  const [workOrderData, setWorkOrderData] = useState([]);
+  const [filteredWorkOrders, setFilteredWorkOrders] = useState(workOrders);
+  const [activeFilter, setActiveFilter] = useState('all');
+  
+  // Filter work orders based on status
+  const filterWorkOrders = (status) => {
+    setActiveFilter(status);
+    if (status === 'all') {
+      setFilteredWorkOrders(workOrders);
+    } else {
+      setFilteredWorkOrders(workOrders.filter(wo => wo.status === status));
+    }
+  };
+  
+  // Initialize work order data
+  useEffect(() => {
+    const statusCounts = filteredWorkOrders.reduce((acc, wo) => {
+      acc[wo.status] = (acc[wo.status] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const chartData = Object.entries(statusCounts).map(([status, count]) => ({
+      name: status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' '),
+      value: count,
+      status: status
+    }));
+    
+    setWorkOrderData(chartData);
+  }, [filteredWorkOrders]);
+  
+  // Simulate real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // In a real app, this would fetch updated data from the backend
+      // For now, we'll just simulate changes
+      const statusCounts = filteredWorkOrders.reduce((acc, wo) => {
+        acc[wo.status] = (acc[wo.status] || 0) + 1;
+        return acc;
+      }, {});
+      
+      const chartData = Object.entries(statusCounts).map(([status, count]) => ({
+        name: status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' '),
+        value: count,
+        status: status
+      }));
+      
+      setWorkOrderData(chartData);
+    }, 5000); // Update every 5 seconds
+    
+    return () => clearInterval(interval);
+  }, [filteredWorkOrders]);
+
   const recentWorkOrders = workOrders.slice(0, 5);
 
   const getPriorityColor = (priority) => {
@@ -36,6 +89,16 @@ const Dashboard = () => {
       default: return 'bg-gray-100 text-gray-700';
     }
   };
+  
+  const getStatusChartColor = (status) => {
+    switch (status) {
+      case 'completed': return '#10B981'; // green
+      case 'in-progress': return '#3B82F6'; // blue
+      case 'open': return '#9CA3AF'; // gray
+      case 'scheduled': return '#8B5CF6'; // purple
+      default: return '#6B7280'; // default gray
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -54,12 +117,14 @@ const Dashboard = () => {
             trend="up"
             trendValue="+12%"
             iconColor="bg-blue-500"
+            navigateTo="/work-orders"
           />
           <StatCard
             title="Open Work Orders"
             value={analytics.workOrderStats.open}
             icon={Clock}
             iconColor="bg-orange-500"
+            navigateTo="/work-orders"
           />
           <StatCard
             title="Assets Tracked"
@@ -68,6 +133,7 @@ const Dashboard = () => {
             trend="up"
             trendValue="+5%"
             iconColor="bg-purple-500"
+            navigateTo="/assets"
           />
           <StatCard
             title="Overdue Tasks"
@@ -76,6 +142,7 @@ const Dashboard = () => {
             trend="down"
             trendValue="-3%"
             iconColor="bg-red-500"
+            navigateTo="/work-orders"
           />
         </div>
 
@@ -119,6 +186,75 @@ const Dashboard = () => {
 
           {/* Quick Stats */}
           <div className="space-y-6">
+            {/* Work Order Status Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Work Order Status</CardTitle>
+              </CardHeader>
+              <CardContent className="h-96">
+                {/* Filter Buttons */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <Button 
+                    variant={activeFilter === 'all' ? 'default' : 'outline'} 
+                    size="sm" 
+                    onClick={() => filterWorkOrders('all')}
+                  >
+                    All
+                  </Button>
+                  <Button 
+                    variant={activeFilter === 'open' ? 'default' : 'outline'} 
+                    size="sm" 
+                    onClick={() => filterWorkOrders('open')}
+                    className="bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  >
+                    Open
+                  </Button>
+                  <Button 
+                    variant={activeFilter === 'in-progress' ? 'default' : 'outline'} 
+                    size="sm" 
+                    onClick={() => filterWorkOrders('in-progress')}
+                    className="bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  >
+                    In Progress
+                  </Button>
+                  <Button 
+                    variant={activeFilter === 'scheduled' ? 'default' : 'outline'} 
+                    size="sm" 
+                    onClick={() => filterWorkOrders('scheduled')}
+                    className="bg-purple-100 text-purple-700 hover:bg-purple-200"
+                  >
+                    Scheduled
+                  </Button>
+                  <Button 
+                    variant={activeFilter === 'completed' ? 'default' : 'outline'} 
+                    size="sm" 
+                    onClick={() => filterWorkOrders('completed')}
+                    className="bg-green-100 text-green-700 hover:bg-green-200"
+                  >
+                    Completed
+                  </Button>
+                </div>
+                
+                {/* Bar Chart */}
+                <ResponsiveContainer width="100%" height="85%">
+                  <BarChart data={workOrderData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value) => [value, 'Work Orders']}
+                      labelFormatter={(label) => `Status: ${label}`}
+                    />
+                    <Bar dataKey="value" name="Work Orders">
+                      {workOrderData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getStatusChartColor(entry.status)} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+            
             {/* This Month Summary */}
             <Card>
               <CardHeader>
@@ -137,7 +273,7 @@ const Dashboard = () => {
                     <TrendingUp className="w-5 h-5 text-blue-600" />
                     <span className="text-sm text-slate-600">Total Cost</span>
                   </div>
-                  <span className="text-xl font-bold text-slate-900">${analytics.thisMonth.totalCost.toLocaleString()}</span>
+                  <span className="text-xl font-bold text-slate-900">LKR {analytics.thisMonth.totalCost.toLocaleString()}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">

@@ -1,12 +1,23 @@
 import React from 'react';
 import { Card, CardContent } from './ui/card';
 import { ArrowUp, ArrowDown } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
-const StatCard = ({ title, value, icon: Icon, trend, trendValue, iconColor = 'bg-blue-500' }) => {
+const StatCard = ({ title, value, icon: Icon, trend, trendValue, iconColor = 'bg-blue-500', navigateTo }) => {
   const isPositive = trend === 'up';
+  const navigate = useNavigate();
+  
+  const handleClick = () => {
+    if (navigateTo) {
+      navigate(navigateTo);
+    }
+  };
   
   return (
-    <Card className="hover:shadow-lg transition-shadow duration-200">
+    <Card 
+      className={`hover:shadow-lg transition-shadow duration-200 ${navigateTo ? 'cursor-pointer' : ''}`}
+      onClick={handleClick}
+    >
       <CardContent className="p-6">
         <div className="flex items-start justify-between">
           <div className="flex-1">

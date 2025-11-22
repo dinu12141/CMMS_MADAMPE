@@ -11,7 +11,10 @@ import {
   BarChart3, 
   Settings,
   Wrench,
-  FolderOpen
+  FolderOpen,
+  Shield,
+  Calculator,
+  Mail
 } from 'lucide-react';
 
 const Sidebar = () => {
@@ -25,6 +28,8 @@ const Sidebar = () => {
     { path: '/locations', icon: MapPin, label: 'Locations' },
     { path: '/documents', icon: FolderOpen, label: 'Documents' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
+    { path: '/budget', icon: Calculator, label: 'Budget Calculations' },
+    { path: '/email', icon: Mail, label: 'Email Communication' },
     { path: '/settings', icon: Settings, label: 'Settings' }
   ];
 
@@ -37,7 +42,7 @@ const Sidebar = () => {
             <Wrench className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">CMMS Pro</h1>
+            <h1 className="text-xl font-bold">CMMS MADAMPE MILLS</h1>
             <p className="text-xs text-slate-400">Maintenance Management</p>
           </div>
         </div>
@@ -64,6 +69,28 @@ const Sidebar = () => {
               </NavLink>
             </li>
           ))}
+          
+          {/* Admin Section */}
+          <li className="mt-8 pt-8 border-t border-slate-700">
+            <div className="px-4 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Administration
+            </div>
+          </li>
+          <li>
+            <NavLink
+              to="/admin"
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-lg'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                }`
+              }
+            >
+              <Shield className="w-5 h-5" />
+              <span className="text-sm font-medium">Admin Dashboard</span>
+            </NavLink>
+          </li>
         </ul>
       </nav>
 

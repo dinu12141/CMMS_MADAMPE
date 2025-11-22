@@ -12,6 +12,9 @@ import Locations from "./pages/Locations";
 import Documents from "./pages/Documents";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
+import AdminDashboard from "./pages/AdminDashboard";
+import BudgetCalculations from "./pages/BudgetCalculations";
+import EmailCommunication from "./pages/EmailCommunication";
 
 function App() {
   return (
@@ -33,6 +36,9 @@ function App() {
             <Route path="/documents" element={<Documents />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/budget" element={<BudgetCalculations />} />
+            <Route path="/email" element={<EmailCommunication />} />
           </Routes>
         </div>
       </div>
