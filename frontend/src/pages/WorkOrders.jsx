@@ -6,80 +6,94 @@ import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
 import { 
   Plus, 
-  Filter, 
-  Clock, 
-  User, 
-  MapPin,
-  DollarSign,
-  Search,
-  Edit,
-  Eye,
-  Trash2
+  Filter,
+  Wrench,
+  Clock,
+  User,
+  AlertCircle,
+  CheckCircle,
+  Calendar
 } from 'lucide-react';
 import { workOrdersApi } from '../services/api';
-import { workOrders as mockWorkOrders } from '../mockData';
+import { useNotification } from '../hooks/useNotification';
+import ProgressUpdateModal from '../components/ProgressUpdateModal';
 import WorkOrderModal from '../components/WorkOrderModal';
 import WorkOrderDetailModal from '../components/WorkOrderDetailModal';
 
 const WorkOrders = () => {
-  const [workOrders, setWorkOrders] = useState([]);
-  const [filteredOrders, setFilteredOrders] = useState([]);
-  const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  
+  const [workOrdersData, setWorkOrdersData] = useState([]);
+  const [filteredWorkOrders, setFilteredWorkOrders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
+  const [showWorkOrderModal, setShowWorkOrderModal] = useState(false);
+  const [currentWorkOrder, setCurrentWorkOrder] = useState(null);
+  const [modalMode, setModalMode] = useState('create');
+  
   const [selectedWorkOrder, setSelectedWorkOrder] = useState(null);
-  const [refreshFlag, setRefreshFlag] = useState(false);
-  const [useMockData, setUseMockData] = useState(false);
+  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+  
+  const { showSuccess, showWarning, showError } = useNotification();
 
-  // Fetch work orders from backend or use mock data
+  // Load work orders on component mount
   useEffect(() => {
-    const fetchWorkOrders = async () => {
-      try {
-        setLoading(true);
-        const data = await workOrdersApi.getAll();
-        setWorkOrders(data);
-        setUseMockData(false);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching work orders:', err);
-        // Fallback to mock data
-        setWorkOrders(mockWorkOrders);
-        setUseMockData(true);
-        setError('Unable to connect to the backend. Displaying mock data.');
-      } finally {
-        setLoading(false);
-      }
-    };
+    loadWorkOrders();
+  }, []);
 
-    fetchWorkOrders();
-  }, [refreshFlag]);
-
-  // Filter work orders based on status and search term
+  // Apply filters when work orders or filter values change
   useEffect(() => {
-    let result = workOrders;
-    
-    // Apply status filter
-    if (filter !== 'all') {
-      result = result.filter(wo => wo.status === filter);
+    applyFilters();
+  }, [workOrdersData, searchTerm, priorityFilter, statusFilter, typeFilter]);
+
+  const loadWorkOrders = async () => {
+    try {
+      setLoading(true);
+      const data = await workOrdersApi.getAll();
+      setWorkOrdersData(data);
+      
+      // Show a notification when work orders are loaded
+      showSuccess('Work Orders Loaded', `Successfully loaded ${data.length} work orders`);
+    } catch (err) {
+      console.error('Failed to load work orders', err);
+      showError('Load Error', 'Failed to load work orders. Please try again.');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const applyFilters = () => {
+    let result = workOrdersData;
     
-    // Apply search filter
+    // Search term filter
     if (searchTerm) {
-      const term = searchTerm.toLowerCase();
       result = result.filter(wo => 
-        (wo.title && wo.title.toLowerCase().includes(term)) ||
-        (wo.workOrderNumber && wo.workOrderNumber.toLowerCase().includes(term)) ||
-        (wo.id && wo.id.toLowerCase().includes(term)) || // For mock data
-        (wo.description && wo.description.toLowerCase().includes(term))
+        wo.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        wo.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        wo.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        wo.description.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
-    setFilteredOrders(result);
-  }, [workOrders, filter, searchTerm]);
+    // Priority filter
+    if (priorityFilter !== 'all') {
+      result = result.filter(wo => wo.priority === priorityFilter);
+    }
+    
+    // Status filter
+    if (statusFilter !== 'all') {
+      result = result.filter(wo => wo.status === statusFilter);
+    }
+    
+    // Type filter
+    if (typeFilter !== 'all') {
+      result = result.filter(wo => wo.type === typeFilter);
+    }
+    
+    setFilteredWorkOrders(result);
+  };
 
   const getPriorityColor = (priority) => {
     switch (priority) {
@@ -93,86 +107,117 @@ const WorkOrders = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'open': return 'bg-blue-100 text-blue-700';
+      case 'in-progress': return 'bg-yellow-100 text-yellow-700';
       case 'completed': return 'bg-green-100 text-green-700';
-      case 'in-progress': return 'bg-blue-100 text-blue-700';
-      case 'open': return 'bg-gray-100 text-gray-700';
-      case 'scheduled': return 'bg-purple-100 text-purple-700';
+      case 'cancelled': return 'bg-gray-100 text-gray-700';
+      case 'on-hold': return 'bg-purple-100 text-purple-700';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
 
-  const statusCounts = {
-    all: workOrders.length,
-    open: workOrders.filter(wo => wo.status === 'open').length,
-    'in-progress': workOrders.filter(wo => wo.status === 'in-progress').length,
-    scheduled: workOrders.filter(wo => wo.status === 'scheduled').length,
-    completed: workOrders.filter(wo => wo.status === 'completed').length
+  const getTypeColor = (type) => {
+    switch (type) {
+      case 'preventive': return 'bg-green-100 text-green-700';
+      case 'corrective': return 'bg-blue-100 text-blue-700';
+      case 'emergency': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
   };
+
+  // Priority, status, and type options
+  const priorities = ['all', 'critical', 'high', 'medium', 'low'];
+  const statuses = ['all', 'open', 'in-progress', 'completed', 'on-hold', 'cancelled'];
+  const types = ['all', 'preventive', 'corrective', 'emergency'];
 
   const handleCreateWorkOrder = () => {
+    setCurrentWorkOrder(null);
     setModalMode('create');
-    setSelectedWorkOrder(null);
-    setIsModalOpen(true);
-  };
-
-  const handleEditWorkOrder = (workOrder) => {
-    setModalMode('edit');
-    setSelectedWorkOrder(workOrder);
-    setIsModalOpen(true);
+    setShowWorkOrderModal(true);
   };
 
   const handleViewDetails = (workOrder) => {
-    setSelectedWorkOrder(workOrder);
-    setIsDetailModalOpen(true);
+    setCurrentWorkOrder(workOrder);
+    setModalMode('view');
+    setShowWorkOrderModal(true);
   };
 
-  const handleDeleteWorkOrder = async (id) => {
-    if (useMockData) {
-      alert('Delete functionality is not available with mock data.');
-      return;
-    }
-    
-    if (window.confirm('Are you sure you want to delete this work order?')) {
-      try {
-        await workOrdersApi.delete(id);
-        // Trigger refresh
-        setRefreshFlag(prev => !prev);
-      } catch (err) {
-        console.error('Error deleting work order:', err);
-        alert('Failed to delete work order. Please try again.');
-      }
-    }
+  const handleEditWorkOrder = (workOrder) => {
+    setCurrentWorkOrder(workOrder);
+    setModalMode('edit');
+    setShowWorkOrderModal(true);
   };
 
-  const handleModalSubmit = async (workOrderData) => {
-    if (useMockData) {
-      alert('CRUD operations are not available with mock data. Please start the backend server to enable full functionality.');
-      setIsModalOpen(false);
-      return;
-    }
-    
+  const handleSaveWorkOrder = async (workOrderData) => {
     try {
       if (modalMode === 'create') {
-        await workOrdersApi.create(workOrderData);
-      } else {
-        await workOrdersApi.update(selectedWorkOrder._id, workOrderData);
+        // Create new work order
+        const newWorkOrder = await workOrdersApi.create(workOrderData);
+        setWorkOrdersData([...workOrdersData, newWorkOrder]);
+        showSuccess('Work Order Created', 'New work order has been successfully created');
+      } else if (modalMode === 'edit') {
+        // Update existing work order
+        const updatedWorkOrder = await workOrdersApi.update(currentWorkOrder.id, workOrderData);
+        setWorkOrdersData(workOrdersData.map(wo => 
+          wo.id === currentWorkOrder.id ? updatedWorkOrder : wo
+        ));
+        showSuccess('Work Order Updated', 'Work order has been successfully updated');
       }
-      
-      // Close modal and refresh data
-      setIsModalOpen(false);
-      setRefreshFlag(prev => !prev);
+      setShowWorkOrderModal(false);
+      setCurrentWorkOrder(null);
     } catch (err) {
-      console.error('Error saving work order:', err);
-      alert(`Failed to ${modalMode === 'create' ? 'create' : 'update'} work order. Please try again.`);
+      console.error('Failed to save work order', err);
+      showError('Save Error', `Failed to save work order: ${err.message}`);
     }
+  };
+
+  const handleCloseWorkOrderModal = () => {
+    setShowWorkOrderModal(false);
+    setCurrentWorkOrder(null);
+  };
+
+  const handleUpdateWorkOrder = (workOrder) => {
+    // In a real app, this would open a modal to update the work order
+    showWarning('Work Order Updated', `Work order ${workOrder.id} has been updated`);
+  };
+
+  const handleUpdateProgress = (workOrder) => {
+    setSelectedWorkOrder(workOrder);
+    setIsProgressModalOpen(true);
+  };
+
+  const handleProgressSubmit = (progressData) => {
+    // In a real app, this would update the work order via API
+    console.log('Updating progress for work order:', selectedWorkOrder.id, progressData);
+    
+    // Update the local state
+    const updatedWorkOrders = workOrdersData.map(wo => 
+      wo.id === selectedWorkOrder.id 
+        ? { 
+            ...wo, 
+            status: progressData.status,
+            actualTime: progressData.actualTime,
+            notes: progressData.notes
+          } 
+        : wo
+    );
+    
+    setWorkOrdersData(updatedWorkOrders);
+    
+    // Show success notification
+    showSuccess('Progress Updated', `Work order ${selectedWorkOrder.id} progress has been updated to ${progressData.progress}%`);
+    
+    // Close the modal
+    setIsProgressModalOpen(false);
+    setSelectedWorkOrder(null);
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-600">Loading work orders...</p>
+          <Wrench className="w-12 h-12 text-slate-400 mx-auto animate-spin" />
+          <p className="mt-2 text-slate-500">Loading work orders...</p>
         </div>
       </div>
     );
@@ -187,168 +232,221 @@ const WorkOrders = () => {
       
       <div className="p-8">
         {/* Actions Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <Input
-                type="text"
-                placeholder="Search work orders..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full sm:w-80"
-              />
-            </div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <Input
+              type="text"
+              placeholder="Search work orders..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-80"
+            />
             <Button variant="outline">
               <Filter className="w-4 h-4 mr-2" />
-              Filters
+              Advanced Filters
             </Button>
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateWorkOrder}>
+          <Button className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto" onClick={handleCreateWorkOrder}>
             <Plus className="w-4 h-4 mr-2" />
-            New Work Order
+            Create Work Order
           </Button>
         </div>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700">{error}</p>
-            {useMockData && (
-              <p className="text-red-600 mt-2 text-sm">
-                Please start the backend server to enable full functionality. 
-                Run: <code className="bg-red-100 px-1 rounded">python -m uvicorn server:app --reload</code> in the backend directory.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Status Filter Tabs */}
-        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-          {['all', 'open', 'in-progress', 'scheduled', 'completed'].map((status) => (
-            <Button
-              key={status}
-              variant={filter === status ? 'default' : 'outline'}
-              onClick={() => setFilter(status)}
-              className="capitalize whitespace-nowrap"
-            >
-              {status.replace('-', ' ')}
-              <Badge variant="secondary" className="ml-2">
-                {statusCounts[status]}
-              </Badge>
-            </Button>
-          ))}
+        {/* Filters */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <select
+            value={priorityFilter}
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {priorities.map(priority => (
+              <option key={priority} value={priority}>
+                {priority === 'all' ? 'All Priorities' : priority.charAt(0).toUpperCase() + priority.slice(1)}
+              </option>
+            ))}
+          </select>
+          
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {statuses.map(status => (
+              <option key={status} value={status}>
+                {status === 'all' ? 'All Statuses' : status.charAt(0).toUpperCase() + status.slice(1)}
+              </option>
+            ))}
+          </select>
+          
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {types.map(type => (
+              <option key={type} value={type}>
+                {type === 'all' ? 'All Types' : type.charAt(0).toUpperCase() + type.slice(1)}
+              </option>
+            ))}
+          </select>
+          
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setPriorityFilter('all');
+              setStatusFilter('all');
+              setTypeFilter('all');
+              setSearchTerm('');
+            }}
+          >
+            Clear Filters
+          </Button>
         </div>
 
-        {/* Work Orders List */}
-        <div className="space-y-4">
-          {filteredOrders.map((wo) => (
-            <Card key={wo._id || wo.id} className="hover:shadow-lg transition-all duration-200">
+        {/* Results Summary */}
+        <div className="mb-4">
+          <p className="text-sm text-slate-600">
+            Showing {filteredWorkOrders.length} of {workOrdersData.length} work orders
+          </p>
+        </div>
+
+        {/* Work Orders Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredWorkOrders.map((wo) => (
+            <Card key={wo.id} className="hover:shadow-lg transition-all duration-200">
               <CardContent className="p-6">
-                <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-3 mb-3">
-                      <span className="font-mono text-lg font-bold text-slate-900">{wo.workOrderNumber || wo.id}</span>
-                      <Badge className={getPriorityColor(wo.priority)}>
-                        {wo.priority}
-                      </Badge>
-                      <Badge className={getStatusColor(wo.status)}>
-                        {wo.status}
-                      </Badge>
-                      <Badge variant="outline" className="capitalize">
-                        {wo.type}
-                      </Badge>
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Wrench className="w-6 h-6 text-blue-600" />
                     </div>
-                    
-                    <h3 className="text-xl font-semibold text-slate-900 mb-2">{wo.title}</h3>
-                    <p className="text-slate-600 mb-4">{wo.description}</p>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-slate-400" />
-                        <div>
-                          <p className="text-xs text-slate-500">Assigned To</p>
-                          <p className="text-sm font-medium text-slate-900">{wo.assignedTo || 'Unassigned'}</p>
-                        </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-lg font-bold text-slate-900">{wo.title}</h3>
+                        <Badge className={getPriorityColor(wo.priority)}>
+                          {wo.priority}
+                        </Badge>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4 text-slate-400" />
-                        <div>
-                          <p className="text-xs text-slate-500">Location</p>
-                          <p className="text-sm font-medium text-slate-900">{wo.location}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-slate-400" />
-                        <div>
-                          <p className="text-xs text-slate-500">Due Date</p>
-                          <p className="text-sm font-medium text-slate-900">
-                            {wo.dueDate ? new Date(wo.dueDate).toLocaleDateString() : 'N/A'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <DollarSign className="w-4 h-4 text-slate-400" />
-                        <div>
-                          <p className="text-xs text-slate-500">Cost</p>
-                          <p className="text-sm font-medium text-slate-900">LKR {wo.cost || 0}</p>
-                        </div>
-                      </div>
+                      <p className="text-sm text-slate-600 mb-1">{wo.description}</p>
+                      <p className="text-xs text-slate-500 font-mono">{wo.id}</p>
                     </div>
                   </div>
-                  
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleViewDetails(wo)}>
-                      <Eye className="w-4 h-4 mr-1" />
-                      View
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleEditWorkOrder(wo)}>
-                      <Edit className="w-4 h-4 mr-1" />
-                      Edit
-                    </Button>
-                    {!useMockData && (
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteWorkOrder(wo._id || wo.id)}>
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        Delete
-                      </Button>
-                    )}
+                  <Badge className={getStatusColor(wo.status)}>
+                    {wo.status}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-200">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Asset</p>
+                    <p className="text-sm font-medium text-slate-900">{wo.assetName}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Type</p>
+                    <Badge variant="secondary" className={getTypeColor(wo.type)}>
+                      {wo.type}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Assigned To</p>
+                    <p className="text-sm font-medium text-slate-900 flex items-center">
+                      <User className="w-4 h-4 mr-1 text-slate-400" />
+                      {wo.assignedTo}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Due Date</p>
+                    <p className="text-sm font-medium text-slate-900 flex items-center">
+                      <Calendar className="w-4 h-4 mr-1 text-slate-400" />
+                      {new Date(wo.dueDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="text-center p-3 bg-slate-50 rounded-lg">
+                    <Clock className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                    <p className="text-xs text-slate-500 mb-1">Est. Time</p>
+                    <p className="text-sm font-bold text-slate-900">{wo.estimatedTime}h</p>
+                  </div>
+                  <div className="text-center p-3 bg-slate-50 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                    <p className="text-xs text-slate-500 mb-1">Cost</p>
+                    <p className="text-sm font-bold text-slate-900">LKR {wo.cost.toLocaleString()}</p>
+                  </div>
+                  <div className="text-center p-3 bg-slate-50 rounded-lg">
+                    <CheckCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                    <p className="text-xs text-slate-500 mb-1">Progress</p>
+                    <p className="text-sm font-bold text-slate-900">
+                      {wo.actualTime ? `${Math.round((wo.actualTime / wo.estimatedTime) * 100)}%` : '0%'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex-1"
+                    onClick={() => handleViewDetails(wo)}
+                  >
+                    View Details
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                    onClick={() => handleUpdateProgress(wo)}
+                  >
+                    Update Progress
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {filteredOrders.length === 0 && (
+        {filteredWorkOrders.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-slate-500">
-              {workOrders.length === 0 
-                ? "No work orders found. Create your first work order to get started." 
-                : "No work orders found matching your criteria."}
-            </p>
-            {workOrders.length === 0 && (
-              <Button className="mt-4 bg-blue-600 hover:bg-blue-700" onClick={handleCreateWorkOrder}>
-                <Plus className="w-4 h-4 mr-2" />
-                Create Work Order
-              </Button>
-            )}
+            <Wrench className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500">No work orders found matching your criteria.</p>
+            <Button 
+              variant="outline" 
+              className="mt-4"
+              onClick={() => {
+                setPriorityFilter('all');
+                setStatusFilter('all');
+                setTypeFilter('all');
+                setSearchTerm('');
+              }}
+            >
+              Clear All Filters
+            </Button>
           </div>
         )}
       </div>
-
-      {/* Work Order Detail Modal */}
-      <WorkOrderDetailModal
-        isOpen={isDetailModalOpen}
-        onClose={() => setIsDetailModalOpen(false)}
+      
+      <ProgressUpdateModal
+        isOpen={isProgressModalOpen}
+        onClose={() => {
+          setIsProgressModalOpen(false);
+          setSelectedWorkOrder(null);
+        }}
         workOrder={selectedWorkOrder}
+        onSubmit={handleProgressSubmit}
       />
-
-      {/* Work Order Modal */}
+      
       <WorkOrderModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSubmit={handleModalSubmit}
-        workOrder={selectedWorkOrder}
+        isOpen={showWorkOrderModal && (modalMode === 'create' || modalMode === 'edit')}
+        onClose={handleCloseWorkOrderModal}
+        onSubmit={handleSaveWorkOrder}
+        workOrder={currentWorkOrder}
         mode={modalMode}
+      />
+      
+      <WorkOrderDetailModal
+        isOpen={showWorkOrderModal && modalMode === 'view'}
+        onClose={handleCloseWorkOrderModal}
+        workOrder={currentWorkOrder}
       />
     </div>
   );

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, FileText, Package, Wrench, MapPin, User } from 'lucide-react';
+import { Search, FileText, Package, Wrench, MapPin, User } from 'lucide-react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { workOrders, assets, inventory, preventiveMaintenance, serviceRequests, locations, users, documents } from '../mockData';
 import { useNavigate } from 'react-router-dom';
+import NotificationDropdown from './NotificationDropdown';
 
 const Header = ({ title, subtitle }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -266,12 +267,7 @@ const Header = ({ title, subtitle }) => {
           </div>
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative">
-            <Bell className="w-5 h-5" />
-            <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500">
-              3
-            </Badge>
-          </Button>
+          <NotificationDropdown />
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict
 from datetime import datetime, date
 from bson import ObjectId
@@ -6,18 +6,19 @@ from bson import ObjectId
 # Custom ObjectId type for Pydantic
 class PyObjectId(ObjectId):
     @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    def __get_pydantic_core_schema__(cls, _source_type, _handler):
+        from pydantic_core import core_schema
+        return core_schema.with_info_plain_validator_function(cls.validate)
 
     @classmethod
-    def validate(cls, v):
+    def validate(cls, v, _info):
         if not ObjectId.is_valid(v):
             raise ValueError("Invalid objectid")
         return ObjectId(v)
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(type="string")
+    def __get_pydantic_json_schema__(cls, _core_schema, _handler):
+        return {'type': 'string'}
 
 
 # Work Order Models
@@ -80,6 +81,7 @@ class WorkOrder(BaseModel):
 
 # Asset Models
 class AssetCreate(BaseModel):
+    assetNumber: Optional[str] = None
     name: str
     category: str
     manufacturer: str
@@ -93,6 +95,7 @@ class AssetCreate(BaseModel):
     specifications: Dict = {}
 
 class AssetUpdate(BaseModel):
+    assetNumber: Optional[str] = None
     name: Optional[str] = None
     category: Optional[str] = None
     manufacturer: Optional[str] = None

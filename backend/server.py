@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 # Import the routes
 from routes.work_orders import router as work_orders_router
 from routes.assets import router as assets_router
+from routes.inventory import router as inventory_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -73,8 +74,9 @@ async def get_status_checks():
 app.include_router(api_router)
 
 # Include the routes
-app.include_router(work_orders_router)
-app.include_router(assets_router)
+app.include_router(work_orders_router, prefix="/api")
+app.include_router(assets_router, prefix="/api")
+app.include_router(inventory_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
@@ -90,6 +92,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+@app.on_event("startup")
+async def startup_db_client():
+    from database import connect_to_mongo
+    await connect_to_mongo()
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

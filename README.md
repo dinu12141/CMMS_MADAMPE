@@ -48,11 +48,17 @@ A comprehensive Computerized Maintenance Management System for industrial facili
 
 ### Alternative Startup (Windows)
 
-On Windows, you can use the provided batch file to start both MongoDB and the backend server:
+On Windows, you can use the provided batch files to start the system:
 
-```
-start_backend.bat
-```
+1. To start everything at once (including MongoDB if installed):
+   ```
+   start_full_system.bat
+   ```
+
+2. To start only the backend services:
+   ```
+   start_backend.bat
+   ```
 
 ## Usage
 
@@ -77,8 +83,11 @@ If the backend services are not running, the application will automatically fall
 If you see "Unable to connect to the backend" messages:
 
 1. Ensure MongoDB is running
+   - If MongoDB is not installed, the application will use demo data
+   - Install MongoDB Community Edition from https://www.mongodb.com/try/download/community
 2. Check that the backend server is started
 3. Verify the connection settings in `backend/.env`
+4. Try using the `start_full_system.bat` script to start everything automatically
 
 ### Frontend Issues
 
@@ -99,3 +108,12 @@ If the frontend fails to start:
    rm -rf node_modules
    npm install --legacy-peer-deps
    ```
+
+### Inventory Loading Issues
+
+If you see "Failed to load inventory" errors:
+
+1. The application automatically falls back to demo data when the backend is unavailable
+2. Check that MongoDB is running and accessible
+3. Verify the backend server is running on http://localhost:8000
+4. Look for error messages in the browser console for more details

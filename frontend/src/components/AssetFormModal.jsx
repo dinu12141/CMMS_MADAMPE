@@ -9,6 +9,7 @@ import { ScrollArea } from './ui/scroll-area';
 
 const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing }) => {
   const [formData, setFormData] = useState({
+    assetNumber: '',
     name: '',
     category: '',
     manufacturer: '',
@@ -29,6 +30,7 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing }) => {
   useEffect(() => {
     if (isEditing && asset) {
       setFormData({
+        assetNumber: asset.assetNumber || '',
         name: asset.name || '',
         category: asset.category || '',
         manufacturer: asset.manufacturer || '',
@@ -55,6 +57,7 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing }) => {
       }
     } else {
       setFormData({
+        assetNumber: '',
         name: '',
         category: '',
         manufacturer: '',
@@ -112,6 +115,11 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing }) => {
       specifications
     };
     
+    // If assetNumber is empty and we're adding a new asset, remove it so backend can generate
+    if (!isEditing && !submitData.assetNumber.trim()) {
+      delete submitData.assetNumber;
+    }
+    
     onSubmit(submitData);
   };
 
@@ -120,7 +128,7 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing }) => {
       <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Edit Asset' : 'Add New Asset'}
+            {isEditing ? 'Edit Asset' : 'Add New Asset with ID'}
           </DialogTitle>
         </DialogHeader>
 
@@ -135,6 +143,17 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing }) => {
                   value={formData.name}
                   onChange={handleChange}
                   required
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="assetNumber">Asset ID</Label>
+                <Input
+                  id="assetNumber"
+                  name="assetNumber"
+                  value={formData.assetNumber}
+                  onChange={handleChange}
+                  placeholder="Leave blank to auto-generate"
                 />
               </div>
               

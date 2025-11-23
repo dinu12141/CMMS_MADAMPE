@@ -10,7 +10,8 @@ import {
   User, 
   Wrench,
   FileText,
-  Hash
+  Hash,
+  CheckCircle
 } from 'lucide-react';
 
 const WorkOrderDetailModal = ({ isOpen, onClose, workOrder }) => {
@@ -36,6 +37,13 @@ const WorkOrderDetailModal = ({ isOpen, onClose, workOrder }) => {
     }
   };
 
+  const calculateProgress = () => {
+    if (workOrder.actualTime && workOrder.estimatedTime) {
+      return Math.round((workOrder.actualTime / workOrder.estimatedTime) * 100);
+    }
+    return 0;
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -55,7 +63,7 @@ const WorkOrderDetailModal = ({ isOpen, onClose, workOrder }) => {
               <div className="flex items-center gap-2">
                 <Hash className="w-4 h-4 text-slate-500" />
                 <span className="font-mono text-lg font-bold text-slate-900">
-                  {workOrder.workOrderNumber || workOrder.id}
+                  {workOrder.workOrderNumber || workOrder._id || workOrder.id}
                 </span>
               </div>
               <Badge className={getPriorityColor(workOrder.priority)}>
@@ -73,6 +81,40 @@ const WorkOrderDetailModal = ({ isOpen, onClose, workOrder }) => {
             <p className="text-slate-600">
               {workOrder.description}
             </p>
+          </div>
+          
+          {/* Progress Section */}
+          <div className="border-b pb-4">
+            <div className="flex items-center gap-3 mb-3">
+              <CheckCircle className="w-5 h-5 text-slate-500" />
+              <h3 className="text-lg font-semibold text-slate-900">Progress</h3>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-3 bg-slate-50 rounded-lg">
+                <Clock className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                <p className="text-xs text-slate-500 mb-1">Estimated Time</p>
+                <p className="text-sm font-bold text-slate-900">
+                  {workOrder.estimatedTime ? `${workOrder.estimatedTime} hours` : 'N/A'}
+                </p>
+              </div>
+              
+              <div className="text-center p-3 bg-slate-50 rounded-lg">
+                <Clock className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                <p className="text-xs text-slate-500 mb-1">Actual Time</p>
+                <p className="text-sm font-bold text-slate-900">
+                  {workOrder.actualTime ? `${workOrder.actualTime} hours` : '0 hours'}
+                </p>
+              </div>
+              
+              <div className="text-center p-3 bg-slate-50 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
+                <p className="text-xs text-slate-500 mb-1">Completion</p>
+                <p className="text-sm font-bold text-slate-900">
+                  {calculateProgress()}%
+                </p>
+              </div>
+            </div>
           </div>
           
           {/* Key Details Grid */}
@@ -101,7 +143,7 @@ const WorkOrderDetailModal = ({ isOpen, onClose, workOrder }) => {
                 <div>
                   <p className="text-sm text-slate-500">Asset</p>
                   <p className="font-medium">
-                    {workOrder.assetId || 'Not assigned'}
+                    {workOrder.assetName || workOrder.assetId || 'Not assigned'}
                   </p>
                 </div>
               </div>

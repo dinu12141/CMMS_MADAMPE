@@ -70,12 +70,20 @@ async def get_asset(asset_id: str):
 async def create_asset(asset: AssetCreate):
     db = await get_database()
     
-    # Generate unique asset number
-    asset_number = await generate_unique_number("assets", "ASSET")
-    
     # Create asset document
     asset_dict = asset.dict()
-    asset_dict["assetNumber"] = asset_number
+    
+    # Use provided asset number or generate a unique one
+    if "assetNumber" in asset_dict and asset_dict["assetNumber"].strip():
+        # Check if the provided asset number is already in use
+        existing_asset = await db.assets.find_one({"assetNumber": asset_dict["assetNumber"].strip()})
+        if existing_asset:
+            raise HTTPException(status_code=400, detail="Asset number already exists")
+        asset_dict["assetNumber"] = asset_dict["assetNumber"].strip()
+    else:
+        # Generate unique asset number
+        asset_dict["assetNumber"] = await generate_unique_number("assets", "ASSET")
+    
     asset_dict["status"] = "operational"
     asset_dict["condition"] = "good"
     asset_dict["maintenanceCost"] = 0
@@ -103,6 +111,17 @@ async def update_asset(asset_id: str, asset: AssetUpdate):
     
     # Build update dict (exclude None values)
     update_dict = {k: v for k, v in asset.dict().items() if v is not None}
+    
+    # Handle assetNumber update with uniqueness check
+    if "assetNumber" in update_dict and update_dict["assetNumber"]:
+        # Check if the provided asset number is already in use by another asset
+        existing_asset = await db.assets.find_one({
+            "assetNumber": update_dict["assetNumber"],
+            "_id": {"$ne": ObjectId(asset_id)}
+        })
+        if existing_asset:
+            raise HTTPException(status_code=400, detail="Asset number already exists")
+        update_dict["assetNumber"] = update_dict["assetNumber"].strip()
     
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")

@@ -15,11 +15,29 @@ import {
   Hash,
   Tag,
   DollarSign,
-  Clock
+  Clock,
+  CheckCircle,
+  Plus
 } from 'lucide-react';
+import { workOrders } from '../mockData';
+import ProgressUpdateModal from './ProgressUpdateModal';
 
 const AssetDetailModal = ({ isOpen, onClose, asset }) => {
   const [activeTab, setActiveTab] = useState('details');
+  const [relatedWorkOrders, setRelatedWorkOrders] = useState([]);
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState(null);
+  const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
+
+  // Load related work orders when asset changes
+  useEffect(() => {
+    if (asset) {
+      // In a real app, this would fetch from the API
+      // const relatedWOs = await workOrdersApi.getByAssetId(asset.id);
+      // For now, we'll filter mock data
+      const relatedWOs = workOrders.filter(wo => wo.assetId === asset.id);
+      setRelatedWorkOrders(relatedWOs);
+    }
+  }, [asset]);
 
   if (!asset) return null;
 
@@ -53,6 +71,61 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
     }
   };
 
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'critical': return 'bg-red-100 text-red-700 border-red-200';
+      case 'high': return 'bg-orange-100 text-orange-700 border-orange-200';
+      case 'medium': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+      case 'low': return 'bg-green-100 text-green-700 border-green-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+  const getStatusColorWO = (status) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-700';
+      case 'in-progress': return 'bg-blue-100 text-blue-700';
+      case 'open': return 'bg-gray-100 text-gray-700';
+      case 'scheduled': return 'bg-purple-100 text-purple-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const handleUpdateProgress = (workOrder) => {
+    setSelectedWorkOrder(workOrder);
+    setIsProgressModalOpen(true);
+  };
+
+  const handleProgressSubmit = (progressData) => {
+    // In a real app, this would update the work order via API
+    console.log('Updating progress for work order:', selectedWorkOrder.id, progressData);
+    
+    // Update the local state
+    const updatedWorkOrders = relatedWorkOrders.map(wo => 
+      wo.id === selectedWorkOrder.id 
+        ? { 
+            ...wo, 
+            status: progressData.status,
+            actualTime: progressData.actualTime,
+            notes: progressData.notes
+          } 
+        : wo
+    );
+    
+    setRelatedWorkOrders(updatedWorkOrders);
+    
+    // Close the modal
+    setIsProgressModalOpen(false);
+    setSelectedWorkOrder(null);
+  };
+
+  const calculateProgress = (workOrder) => {
+    if (workOrder.actualTime && workOrder.estimatedTime) {
+      return Math.round((workOrder.actualTime / workOrder.estimatedTime) * 100);
+    }
+    return 0;
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh]">
@@ -80,6 +153,12 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
             onClick={() => setActiveTab('specifications')}
           >
             Specifications
+          </button>
+          <button
+            className={`px-4 py-2 font-medium text-sm ${activeTab === 'workOrders' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+            onClick={() => setActiveTab('workOrders')}
+          >
+            Work Orders ({relatedWorkOrders.length})
           </button>
         </div>
 
@@ -247,6 +326,70 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
               )}
             </div>
           )}
+
+          {activeTab === 'workOrders' && (
+            <div className="py-4">
+              <h3 className="text-sm font-medium text-slate-500 mb-3">Related Work Orders</h3>
+              {relatedWorkOrders.length > 0 ? (
+                <div className="space-y-3">
+                  {relatedWorkOrders.map((wo) => (
+                    <div key={wo.id} className="border rounded-lg p-4 hover:bg-slate-50">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <h4 className="font-medium text-slate-900">{wo.title}</h4>
+                          <p className="text-sm text-slate-600">{wo.description}</p>
+                        </div>
+                        <Badge className={getStatusColorWO(wo.status)}>
+                          {wo.status}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-sm text-slate-600 mb-3">
+                        <div className="flex items-center gap-1">
+                          <Wrench className="w-4 h-4" />
+                          <span>{wo.type}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="w-4 h-4" />
+                          <span>Due: {new Date(wo.dueDate).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <CheckCircle className="w-4 h-4" />
+                          <span>{calculateProgress(wo)}% complete</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Badge className={getPriorityColor(wo.priority)}>
+                          {wo.priority}
+                        </Badge>
+                        <span className="text-xs text-slate-500 font-mono">{wo.id}</span>
+                      </div>
+                      
+                      <div className="flex justify-end mt-3">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleUpdateProgress(wo)}
+                        >
+                          Update Progress
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Wrench className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-slate-500">No work orders found for this asset.</p>
+                  <Button className="mt-3" variant="outline">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Work Order
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </ScrollArea>
 
         <div className="flex justify-end gap-2 pt-4 border-t border-slate-200">
@@ -255,6 +398,16 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
           </Button>
           <Button>Edit Asset</Button>
         </div>
+        
+        <ProgressUpdateModal
+          isOpen={isProgressModalOpen}
+          onClose={() => {
+            setIsProgressModalOpen(false);
+            setSelectedWorkOrder(null);
+          }}
+          workOrder={selectedWorkOrder}
+          onSubmit={handleProgressSubmit}
+        />
       </DialogContent>
     </Dialog>
   );
