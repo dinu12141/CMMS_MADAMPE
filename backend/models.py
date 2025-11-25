@@ -83,16 +83,26 @@ class WorkOrder(BaseModel):
 class AssetCreate(BaseModel):
     assetNumber: Optional[str] = None
     name: str
-    category: str
-    manufacturer: str
-    model: str
-    serialNumber: str
-    purchaseDate: date
-    installDate: date
-    warrantyExpiry: date
+    category: Optional[str] = None
+    manufacturer: Optional[str] = None
+    model: Optional[str] = None
+    serialNumber: Optional[str] = None
+    purchaseDate: Optional[date] = None
+    installDate: Optional[date] = None
+    warrantyExpiry: Optional[date] = None
     location: str
-    criticality: str  # critical, high, medium, low
-    specifications: Dict = {}
+    criticality: Optional[str] = None  # critical, high, medium, low
+    specifications: Optional[Dict] = None
+    imageUrl: Optional[str] = None
+
+    @validator('purchaseDate', 'installDate', 'warrantyExpiry', pre=True)
+    def parse_date(cls, v):
+        if isinstance(v, str):
+            try:
+                return date.fromisoformat(v)
+            except ValueError:
+                raise ValueError('Invalid date format. Expected YYYY-MM-DD')
+        return v
 
 class AssetUpdate(BaseModel):
     assetNumber: Optional[str] = None
@@ -113,15 +123,16 @@ class AssetUpdate(BaseModel):
     nextMaintenance: Optional[date] = None
     criticality: Optional[str] = None
     specifications: Optional[Dict] = None
+    imageUrl: Optional[str] = None
 
 class Asset(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     assetNumber: str
     name: str
-    category: str
-    manufacturer: str
-    model: str
-    serialNumber: str
+    category: str = ""
+    manufacturer: str = ""
+    model: str = ""
+    serialNumber: str = ""
     purchaseDate: date
     installDate: date
     warrantyExpiry: date
@@ -132,8 +143,9 @@ class Asset(BaseModel):
     downtime: int = 0
     lastMaintenance: Optional[date] = None
     nextMaintenance: Optional[date] = None
-    criticality: str
+    criticality: str = "medium"
     specifications: Dict = {}
+    imageUrl: Optional[str] = None
     createdAt: datetime
     updatedAt: datetime
 
@@ -288,13 +300,14 @@ class ServiceRequest(BaseModel):
 class LocationCreate(BaseModel):
     name: str
     type: str
-    address: str
-    city: str
-    state: str
-    zipCode: str
+    address: str = ""
+    city: str = ""
+    state: str = ""
+    zipCode: str = ""
     coordinates: Dict[str, float] = {"lat": 0.0, "lng": 0.0}
-    size: int
-    floors: int
+    size: int = 0
+    floors: int = 0
+    image: Optional[str] = None
 
 class LocationUpdate(BaseModel):
     name: Optional[str] = None
@@ -306,19 +319,23 @@ class LocationUpdate(BaseModel):
     coordinates: Optional[Dict[str, float]] = None
     size: Optional[int] = None
     floors: Optional[int] = None
+    image: Optional[str] = None
 
 class Location(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
     locationId: str
     name: str
     type: str
-    address: str
-    city: str
-    state: str
-    zipCode: str
-    coordinates: Dict[str, float]
-    size: int
-    floors: int
+    address: str = ""
+    city: str = ""
+    state: str = ""
+    zipCode: str = ""
+    coordinates: Dict[str, float] = {"lat": 0.0, "lng": 0.0}
+    size: int = 0
+    floors: int = 0
+    image: Optional[str] = None
+    assetCount: Optional[int] = 0
+    activeWOs: Optional[int] = 0
     createdAt: datetime
     updatedAt: datetime
 

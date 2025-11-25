@@ -15,7 +15,8 @@ const apiCall = async (url, options = {}) => {
     
     const response = await fetch(url, {
       headers: {
-        'Content-Type': 'application/json',
+        // Remove Content-Type header for FormData requests
+        ...(!options.body || !(options.body instanceof FormData) ? {'Content-Type': 'application/json'} : {}),
         ...options.headers,
       },
       signal: controller.signal,
@@ -67,6 +68,40 @@ const workOrdersApi = {
   }),
 };
 
+// Service Requests API
+const serviceRequestsApi = {
+  getAll: () => apiCall('http://localhost:8000/api/service-requests'),
+  getById: (id) => apiCall(`http://localhost:8000/api/service-requests/${id}`),
+  create: (data) => apiCall('http://localhost:8000/api/service-requests', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  update: (id, data) => apiCall(`http://localhost:8000/api/service-requests/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  delete: (id) => apiCall(`http://localhost:8000/api/service-requests/${id}`, {
+    method: 'DELETE',
+  }),
+};
+
+// Locations API
+const locationsApi = {
+  getAll: () => apiCall('http://localhost:8000/api/locations'),
+  getById: (id) => apiCall(`http://localhost:8000/api/locations/${id}`),
+  create: (data) => apiCall('http://localhost:8000/api/locations', {
+    method: 'POST',
+    body: data instanceof FormData ? data : JSON.stringify(data),
+  }),
+  update: (id, data) => apiCall(`http://localhost:8000/api/locations/${id}`, {
+    method: 'PUT',
+    body: data instanceof FormData ? data : JSON.stringify(data),
+  }),
+  delete: (id) => apiCall(`http://localhost:8000/api/locations/${id}`, {
+    method: 'DELETE',
+  }),
+};
+
 // Assets API
 const assetsApi = {
   getAll: (filters = {}) => {
@@ -79,11 +114,11 @@ const assetsApi = {
   getById: (id) => apiCall(`http://localhost:8000/api/assets/${id}`),
   create: (data) => apiCall('http://localhost:8000/api/assets', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: data instanceof FormData ? data : JSON.stringify(data),
   }),
   update: (id, data) => apiCall(`http://localhost:8000/api/assets/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    body: data instanceof FormData ? data : JSON.stringify(data),
   }),
   delete: (id) => apiCall(`http://localhost:8000/api/assets/${id}`, {
     method: 'DELETE',
@@ -147,4 +182,4 @@ const inventoryApi = {
   },
 };
 
-export { workOrdersApi, assetsApi, inventoryApi };
+export { workOrdersApi, assetsApi, inventoryApi, serviceRequestsApi, locationsApi };

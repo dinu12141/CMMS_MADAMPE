@@ -2,25 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { ScrollArea } from './ui/scroll-area';
 import { 
-  Package, 
   Calendar, 
-  TrendingUp, 
-  AlertTriangle, 
-  Wrench, 
-  FileText,
-  MapPin,
-  Factory,
-  Hash,
-  Tag,
-  DollarSign,
-  Clock,
+  User, 
+  Clock, 
+  AlertCircle, 
   CheckCircle,
-  Plus
+  Wrench,
+  FileText
 } from 'lucide-react';
-import { workOrders } from '../mockData';
-import ProgressUpdateModal from './ProgressUpdateModal';
+import { workOrdersApi } from '../services/api';
 
 const AssetDetailModal = ({ isOpen, onClose, asset }) => {
   const [activeTab, setActiveTab] = useState('details');
@@ -170,6 +161,17 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
                   <div>
                     <h3 className="text-sm font-medium text-slate-500 mb-1">Basic Information</h3>
                     <div className="space-y-3">
+                      {/* Asset Image */}
+                      {asset.imageUrl && (
+                        <div className="flex justify-center mb-4">
+                          <img 
+                            src={`http://localhost:8000${asset.imageUrl}`} 
+                            alt={asset.name} 
+                            className="w-48 h-48 object-contain rounded border"
+                          />
+                        </div>
+                      )}
+                      
                       <div className="flex items-center gap-3">
                         <Factory className="w-4 h-4 text-slate-400" />
                         <div>

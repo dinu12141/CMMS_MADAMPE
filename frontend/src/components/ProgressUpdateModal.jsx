@@ -22,12 +22,22 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
   // Initialize form data when workOrder prop changes
   useEffect(() => {
     if (workOrder) {
+      const progress = workOrder.actualTime && workOrder.estimatedTime 
+        ? Math.round((workOrder.actualTime / workOrder.estimatedTime) * 100) 
+        : 0;
+      
+      // Determine status based on progress
+      let status = workOrder.status || 'open';
+      if (progress >= 10 && progress < 100) {
+        status = 'in-progress';
+      } else if (progress >= 100) {
+        status = 'completed';
+      }
+      
       setFormData({
-        progress: workOrder.actualTime && workOrder.estimatedTime 
-          ? Math.round((workOrder.actualTime / workOrder.estimatedTime) * 100) 
-          : 0,
-        status: workOrder.status || 'open',
-        actualTime: workOrder.actualTime || '',
+        progress: progress,
+        status: status,
+        actualTime: workOrder.actualTime ? workOrder.actualTime.toString() : '',
         notes: workOrder.notes || ''
       });
     }
@@ -50,10 +60,31 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
   };
 
   const handleSliderChange = (value) => {
-    setFormData(prev => ({
-      ...prev,
-      progress: value[0]
-    }));
+    const progress = value[0];
+    setFormData(prev => {
+      // Automatically update status based on progress
+      let newStatus = prev.status;
+      if (progress >= 10 && progress < 100) {
+        newStatus = 'in-progress';
+      } else if (progress >= 100) {
+        newStatus = 'completed';
+      } else if (progress < 10 && prev.status === 'in-progress') {
+        newStatus = 'open';
+      }
+      
+      // Calculate actual time based on progress and estimated time
+      let actualTime = prev.actualTime;
+      if (workOrder && workOrder.estimatedTime) {
+        actualTime = (progress / 100) * workOrder.estimatedTime;
+      }
+      
+      return {
+        ...prev,
+        progress: progress,
+        status: newStatus,
+        actualTime: actualTime.toFixed(1)
+      };
+    });
   };
 
   const handleSelectChange = (name, value) => {
@@ -95,7 +126,7 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
         // Prepare data for submission
         const submitData = {
           status: formData.status,
-          actualTime: formData.actualTime ? parseFloat(formData.actualTime) : 0,
+          actualTime: parseFloat(formData.actualTime),
           notes: formData.notes
         };
         
@@ -110,6 +141,58 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
       } catch (error) {
         console.error('Failed to update work order progress:', error);
         setErrors({ submit: 'Failed to update work order. Please try again.' });
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Handle cancel action
+  const handleCancel = async () => {
+    if (workOrder) {
+      setLoading(true);
+      try {
+        // Update work order status to cancelled
+        const submitData = {
+          status: 'cancelled'
+        };
+        
+        const updatedWorkOrder = await workOrdersApi.update(workOrder.id || workOrder._id, submitData);
+        
+        // Call onSubmit with the updated work order data
+        onSubmit(updatedWorkOrder);
+        
+        // Close the modal
+        onClose();
+      } catch (error) {
+        console.error('Failed to cancel work order:', error);
+        setErrors({ submit: 'Failed to cancel work order. Please try again.' });
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Handle on hold action
+  const handleOnHold = async () => {
+    if (workOrder) {
+      setLoading(true);
+      try {
+        // Update work order status to on-hold
+        const submitData = {
+          status: 'on-hold'
+        };
+        
+        const updatedWorkOrder = await workOrdersApi.update(workOrder.id || workOrder._id, submitData);
+        
+        // Call onSubmit with the updated work order data
+        onSubmit(updatedWorkOrder);
+        
+        // Close the modal
+        onClose();
+      } catch (error) {
+        console.error('Failed to put work order on hold:', error);
+        setErrors({ submit: 'Failed to put work order on hold. Please try again.' });
       } finally {
         setLoading(false);
       }
@@ -147,7 +230,7 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
             />
             <div className="flex justify-between text-sm text-slate-600">
               <span>0%</span>
-              <span className="font-medium">{formData.progress}%</span>
+              <span className="font-medium text-lg">{formData.progress}%</span>
               <span>100%</span>
             </div>
             {errors.progress && <p className="text-red-500 text-sm">{errors.progress}</p>}
@@ -205,13 +288,36 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
           
           {errors.submit && <p className="text-red-500 text-sm">{errors.submit}</p>}
           
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Updating...' : 'Update Progress'}
-            </Button>
+          <div className="flex flex-col gap-3 pt-4">
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+                Close
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? 'Updating...' : 'Update Progress'}
+              </Button>
+            </div>
+            
+            <div className="flex justify-between gap-3 pt-2 border-t border-slate-200">
+              <Button 
+                type="button" 
+                variant="destructive" 
+                onClick={handleCancel} 
+                disabled={loading}
+                className="flex-1"
+              >
+                Cancel Work Order
+              </Button>
+              <Button 
+                type="button" 
+                variant="secondary" 
+                onClick={handleOnHold} 
+                disabled={loading}
+                className="flex-1"
+              >
+                Put On Hold
+              </Button>
+            </div>
           </div>
         </form>
       </DialogContent>

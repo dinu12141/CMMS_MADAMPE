@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { assets } from '../mockData';
+import { assetsApi, locationsApi } from '../services/api';
 
 const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' }) => {
   const [formData, setFormData] = useState({
@@ -23,6 +23,16 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
   });
 
   const [errors, setErrors] = useState({});
+  const [assets, setAssets] = useState([]);
+  const [locations, setLocations] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch assets and locations when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchAssetsAndLocations();
+    }
+  }, [isOpen]);
 
   // Initialize form data when workOrder prop changes
   useEffect(() => {
@@ -65,6 +75,23 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
     }
     setErrors({});
   }, [workOrder, mode, isOpen]);
+
+  const fetchAssetsAndLocations = async () => {
+    try {
+      setLoading(true);
+      // Fetch assets
+      const assetsData = await assetsApi.getAll();
+      setAssets(assetsData);
+      
+      // Fetch locations
+      const locationsData = await locationsApi.getAll();
+      setLocations(locationsData);
+    } catch (error) {
+      console.error('Failed to fetch assets and locations:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -118,7 +145,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
       newErrors.estimatedTime = 'Estimated time must be a positive number';
     }
     
-    if (!formData.location.trim()) {
+    if (!formData.location) {
       newErrors.location = 'Location is required';
     }
     
@@ -157,6 +184,23 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
     }
   };
 
+  // Auto-populate creation date and time
+  useEffect(() => {
+    if (mode === 'create' && isOpen) {
+      // Set current date and time as default for due date
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      setFormData(prev => ({
+        ...prev,
+        dueDate: `${year}-${month}-${day}T${hours}:${minutes}`
+      }));
+    }
+  }, [mode, isOpen]);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -165,6 +209,12 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
             {mode === 'edit' ? 'Edit Work Order' : 'Create New Work Order'}
           </DialogTitle>
         </DialogHeader>
+        
+        {loading && (
+          <div className="text-center py-4">
+            <p>Loading assets and locations...</p>
+          </div>
+        )}
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -189,7 +239,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
                 </SelectTrigger>
                 <SelectContent>
                   {assets.map(asset => (
-                    <SelectItem key={asset.id} value={asset.id}>
+                    <SelectItem key={asset._id || asset.id} value={asset._id || asset.id}>
                       {asset.name}
                     </SelectItem>
                   ))}
@@ -281,14 +331,23 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
             
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="location">Location *</Label>
-              <Input
-                id="location"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                placeholder="Enter location"
+              <Select 
+                name="location" 
+                value={formData.location} 
+                onValueChange={(value) => handleSelectChange('location', value)}
                 className={errors.location ? 'border-red-500' : ''}
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map(location => (
+                    <SelectItem key={location._id || location.id} value={location.name}>
+                      {location.name} ({location.type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {errors.location && <p className="text-red-500 text-sm">{errors.location}</p>}
             </div>
           </div>

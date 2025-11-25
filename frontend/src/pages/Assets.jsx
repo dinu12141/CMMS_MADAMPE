@@ -14,7 +14,7 @@ import {
   Search,
   SlidersHorizontal
 } from 'lucide-react';
-import { assetsApi } from '../services/api';
+import { assetsApi, locationsApi } from '../services/api';
 import AssetDetailModal from '../components/AssetDetailModal';
 import AssetHistoryModal from '../components/AssetHistoryModal';
 import AssetFormModal from '../components/AssetFormModal';
@@ -28,6 +28,7 @@ const Assets = () => {
   const [locationFilter, setLocationFilter] = useState('all');
   
   const [assets, setAssets] = useState([]);
+  const [locations, setLocations] = useState([]); // Add locations state
   const [filteredAssets, setFilteredAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -58,9 +59,10 @@ const Assets = () => {
     'Way Bridge Section'
   ];
 
-  // Load assets on component mount
+  // Load assets and locations on component mount
   useEffect(() => {
     loadAssets();
+    loadLocations(); // Load locations
   }, []);
 
   // Apply filters when assets or filter values change
@@ -71,221 +73,8 @@ const Assets = () => {
   const loadAssets = async () => {
     try {
       setLoading(true);
-      // In a real app, this would fetch from the API
-      // const data = await assetsApi.getAll();
-      // For now, we'll use mock data with the new categories
-      const data = [
-        {
-          id: 'ASSET-001',
-          assetNumber: 'ASSET-001',
-          name: 'Centrifuge Unit VC-101',
-          category: 'VCO Plant',
-          manufacturer: 'Alfa Laval',
-          model: 'FX 300',
-          serialNumber: 'VC-2020-1234',
-          purchaseDate: '2020-03-15',
-          installDate: '2020-04-01',
-          warrantyExpiry: '2025-04-01',
-          location: 'VCO Plant - Processing Area',
-          status: 'operational',
-          condition: 'good',
-          maintenanceCost: 3200,
-          downtime: 12,
-          lastMaintenance: '2024-12-15',
-          nextMaintenance: '2025-01-20',
-          criticality: 'high',
-          specifications: { capacity: '5000 L/h', power: '22 kW' }
-        },
-        {
-          id: 'ASSET-002',
-          assetNumber: 'ASSET-002',
-          name: 'Steam Boiler B-201',
-          category: 'Boiler Section',
-          manufacturer: 'Babcock & Wilcox',
-          model: 'ST-500',
-          serialNumber: 'BL-2019-5678',
-          purchaseDate: '2019-06-20',
-          installDate: '2019-07-05',
-          warrantyExpiry: '2024-07-05',
-          location: 'Boiler Section - Main Hall',
-          status: 'maintenance',
-          condition: 'fair',
-          maintenanceCost: 1850,
-          downtime: 48,
-          lastMaintenance: '2024-11-10',
-          nextMaintenance: '2025-02-10',
-          criticality: 'critical',
-          specifications: { capacity: '10 tons/h', pressure: '150 PSI' }
-        },
-        {
-          id: 'ASSET-003',
-          assetNumber: 'ASSET-003',
-          name: 'Conveyor Belt CB-301',
-          category: 'Way Bridge Section',
-          manufacturer: 'Dorner',
-          model: '2200 Series',
-          serialNumber: 'CB-2021-9012',
-          purchaseDate: '2021-02-10',
-          installDate: '2021-03-15',
-          warrantyExpiry: '2026-03-15',
-          location: 'Way Bridge Section - Transport',
-          status: 'operational',
-          condition: 'excellent',
-          maintenanceCost: 950,
-          downtime: 6,
-          lastMaintenance: '2025-01-14',
-          nextMaintenance: '2025-04-14',
-          criticality: 'medium',
-          specifications: { length: '30 ft', speed: '80 fpm' }
-        },
-        {
-          id: 'ASSET-004',
-          assetNumber: 'ASSET-004',
-          name: 'Generator Set G-101',
-          category: 'Generator Section',
-          manufacturer: 'Caterpillar',
-          model: 'CAT 3512',
-          serialNumber: 'GN-2018-3456',
-          purchaseDate: '2018-09-01',
-          installDate: '2018-10-15',
-          warrantyExpiry: '2023-10-15',
-          location: 'Generator Section - Power House',
-          status: 'operational',
-          condition: 'good',
-          maintenanceCost: 2100,
-          downtime: 18,
-          lastMaintenance: '2024-10-22',
-          nextMaintenance: '2025-01-22',
-          criticality: 'high',
-          specifications: { capacity: '1500 kW', voltage: '415V' }
-        },
-        {
-          id: 'ASSET-005',
-          assetNumber: 'ASSET-005',
-          name: 'Sifter Machine S-401',
-          category: 'Sifter Section',
-          manufacturer: 'Buhler',
-          model: 'SF 200',
-          serialNumber: 'SF-2022-7890',
-          purchaseDate: '2022-05-10',
-          installDate: '2022-06-01',
-          warrantyExpiry: '2027-06-01',
-          location: 'Sifter Section - Processing',
-          status: 'degraded',
-          condition: 'fair',
-          maintenanceCost: 450,
-          downtime: 0,
-          lastMaintenance: '2024-06-01',
-          nextMaintenance: '2025-06-01',
-          criticality: 'low',
-          specifications: { capacity: '20 tons/h', screens: '4 layers' }
-        },
-        {
-          id: 'ASSET-006',
-          assetNumber: 'ASSET-006',
-          name: 'Press Machine PM-201',
-          category: 'Madampe Plant (DS)',
-          manufacturer: 'Anderson',
-          model: 'PM 500',
-          serialNumber: 'PM-2021-1122',
-          purchaseDate: '2021-01-15',
-          installDate: '2021-02-01',
-          warrantyExpiry: '2026-02-01',
-          location: 'Madampe Plant (DS) - Pressing',
-          status: 'operational',
-          condition: 'good',
-          maintenanceCost: 1200,
-          downtime: 5,
-          lastMaintenance: '2025-01-05',
-          nextMaintenance: '2025-04-05',
-          criticality: 'high',
-          specifications: { capacity: '15 tons/h', pressure: '100 PSI' }
-        },
-        {
-          id: 'ASSET-007',
-          assetNumber: 'ASSET-007',
-          name: 'Clarifier Unit CU-301',
-          category: 'Madampe plant (CS)',
-          manufacturer: 'Alfa Laval',
-          model: 'CXS 300',
-          serialNumber: 'CU-2020-3344',
-          purchaseDate: '2020-05-10',
-          installDate: '2020-06-01',
-          warrantyExpiry: '2025-06-01',
-          location: 'Madampe plant (CS) - Clarification',
-          status: 'operational',
-          condition: 'excellent',
-          maintenanceCost: 2100,
-          downtime: 3,
-          lastMaintenance: '2024-12-20',
-          nextMaintenance: '2025-03-20',
-          criticality: 'high',
-          specifications: { capacity: '8000 L/h', power: '15 kW' }
-        },
-        {
-          id: 'ASSET-008',
-          assetNumber: 'ASSET-008',
-          name: 'Washing Drum WD-101',
-          category: 'Wet Section ( DS)',
-          manufacturer: 'Buhler',
-          model: 'WD 400',
-          serialNumber: 'WD-2019-5566',
-          purchaseDate: '2019-08-20',
-          installDate: '2019-09-05',
-          warrantyExpiry: '2024-09-05',
-          location: 'Wet Section ( DS) - Washing',
-          status: 'maintenance',
-          condition: 'fair',
-          maintenanceCost: 850,
-          downtime: 15,
-          lastMaintenance: '2024-11-25',
-          nextMaintenance: '2025-02-25',
-          criticality: 'medium',
-          specifications: { capacity: '12 tons/h', rotation: '15 rpm' }
-        },
-        {
-          id: 'ASSET-009',
-          assetNumber: 'ASSET-009',
-          name: 'Pairing Roller PR-201',
-          category: 'Pairing Section',
-          manufacturer: 'Anderson',
-          model: 'PR 600',
-          serialNumber: 'PR-2021-7788',
-          purchaseDate: '2021-03-10',
-          installDate: '2021-04-01',
-          warrantyExpiry: '2026-04-01',
-          location: 'Pairing Section - Processing',
-          status: 'operational',
-          condition: 'good',
-          maintenanceCost: 650,
-          downtime: 2,
-          lastMaintenance: '2024-12-30',
-          nextMaintenance: '2025-03-30',
-          criticality: 'medium',
-          specifications: { capacity: '10 tons/h', gap: '0.5-5 mm' }
-        },
-        {
-          id: 'ASSET-010',
-          assetNumber: 'ASSET-010',
-          name: 'Threshing Unit TU-101',
-          category: 'Thambagalla Section',
-          manufacturer: 'Cimbria',
-          model: 'TU 700',
-          serialNumber: 'TU-2020-9900',
-          purchaseDate: '2020-07-15',
-          installDate: '2020-08-01',
-          warrantyExpiry: '2025-08-01',
-          location: 'Thambagalla Section - Threshing',
-          status: 'operational',
-          condition: 'excellent',
-          maintenanceCost: 1800,
-          downtime: 4,
-          lastMaintenance: '2025-01-10',
-          nextMaintenance: '2025-04-10',
-          criticality: 'high',
-          specifications: { capacity: '25 tons/h', power: '30 kW' }
-        }
-      ];
+      // Fetch assets from the API
+      const data = await assetsApi.getAll();
       setAssets(data);
       
       // Show a notification when assets are loaded
@@ -297,6 +86,26 @@ const Assets = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Load locations from API
+  const loadLocations = async () => {
+    try {
+      const data = await locationsApi.getAll();
+      setLocations(data);
+    } catch (err) {
+      console.error('Failed to load locations', err);
+      showError('Load Error', 'Failed to load locations. Please try again.');
+    }
+  };
+
+  // Function to get location name by ID
+  const getLocationName = (locationId) => {
+    if (!locationId) return 'Unknown Location';
+    
+    // Find location by ID
+    const location = locations.find(loc => loc.id === locationId);
+    return location ? location.name : 'Unknown Location';
   };
 
   const applyFilters = () => {
@@ -330,7 +139,10 @@ const Assets = () => {
     
     // Location filter
     if (locationFilter !== 'all') {
-      result = result.filter(asset => asset.location === locationFilter);
+      result = result.filter(asset => {
+        const locationName = getLocationName(asset.location);
+        return locationName === locationFilter;
+      });
     }
     
     setFilteredAssets(result);
@@ -369,7 +181,7 @@ const Assets = () => {
   // Get unique values for other filters
   const statuses = ['all', ...new Set(assets.map(a => a.status))];
   const criticalities = ['all', ...new Set(assets.map(a => a.criticality))];
-  const locations = ['all', ...new Set(assets.map(a => a.location))];
+  const locationNames = ['all', ...new Set(assets.map(a => getLocationName(a.location)))];
 
   const handleViewDetails = (asset) => {
     setSelectedAsset(asset);
@@ -379,43 +191,11 @@ const Assets = () => {
   const handleViewHistory = async (asset) => {
     setSelectedAsset(asset);
     try {
-      // In a real app, this would fetch from the API
-      // const history = await assetsApi.getHistory(asset.id);
-      // For now, we'll use mock data
-      const mockHistory = {
-        workOrders: [
-          {
-            id: 'WO-001',
-            workOrderNumber: 'WO-001',
-            title: 'Replace Filter - Centrifuge Unit',
-            description: 'Monthly filter replacement for centrifuge unit',
-            priority: 'high',
-            status: 'completed',
-            assignedTo: 'John Smith',
-            dueDate: '2025-01-20T17:00:00Z',
-            estimatedTime: 2,
-            cost: 150
-          }
-        ],
-        preventiveMaintenance: [
-          {
-            id: 'PM-001',
-            pmNumber: 'PM-001',
-            name: 'Centrifuge Maintenance',
-            frequency: 'monthly',
-            nextDue: '2025-02-20',
-            estimatedDuration: 2,
-            assignedTo: 'John Smith',
-            active: true,
-            tasks: ['Clean filters', 'Check oil levels', 'Inspect belts', 'Test operation']
-          }
-        ],
-        serviceRequests: []
-      };
-      setAssetHistory(mockHistory);
+      const history = await assetsApi.getHistory(asset.id);
+      setAssetHistory(history);
       setShowHistoryModal(true);
     } catch (err) {
-      showError('Load Error', 'Failed to load asset history');
+      showError('Load Error', 'Failed to load asset history. Please try again.');
       console.error('Failed to load asset history', err);
     }
   };
@@ -435,22 +215,15 @@ const Assets = () => {
   const handleSaveAsset = async (assetData) => {
     try {
       if (isEditing) {
-        // In a real app, this would update via the API
-        // await assetsApi.update(selectedAsset.id, assetData);
-        // For now, we'll just update locally
+        // Update existing asset via API
+        const updatedAsset = await assetsApi.update(selectedAsset.id, assetData);
         setAssets(assets.map(asset => 
-          asset.id === selectedAsset.id ? {...asset, ...assetData} : asset
+          asset.id === selectedAsset.id ? updatedAsset : asset
         ));
         showSuccess('Asset Updated', `Asset ${assetData.name} has been successfully updated`);
       } else {
-        // In a real app, this would create via the API
-        // const newAsset = await assetsApi.create(assetData);
-        // For now, we'll just add locally
-        const newAsset = {
-          id: `ASSET-${assets.length + 1}`,
-          assetNumber: `ASSET-${assets.length + 1}`,
-          ...assetData
-        };
+        // Create new asset via API
+        const newAsset = await assetsApi.create(assetData);
         setAssets([...assets, newAsset]);
         showSuccess('Asset Created', `New asset ${assetData.name} has been successfully created`);
       }
@@ -576,7 +349,7 @@ const Assets = () => {
                   onChange={(e) => setLocationFilter(e.target.value)}
                   className="w-full border border-slate-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  {locations.map(location => (
+                  {locationNames.map(location => (
                     <option key={location} value={location}>
                       {location === 'all' ? 'All Locations' : location}
                     </option>
@@ -655,7 +428,7 @@ const Assets = () => {
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 mb-0.5">Location</p>
-                    <p className="text-xs font-medium text-slate-900">{asset.location}</p>
+                    <p className="text-xs font-medium text-slate-900">{getLocationName(asset.location)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-500 mb-0.5">Condition</p>
@@ -752,6 +525,7 @@ const Assets = () => {
         onSubmit={handleSaveAsset}
         asset={selectedAsset}
         isEditing={isEditing}
+        locations={locations} // Pass locations to the form modal
       />
     </div>
   );

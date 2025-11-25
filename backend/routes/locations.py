@@ -1,0 +1,129 @@
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from typing import List, Optional
+from datetime import datetime
+from bson import ObjectId
+import base64
+import os
+
+from models import Location, LocationCreate, LocationUpdate
+from database import get_database, generate_unique_number, add_timestamps
+
+router = APIRouter(prefix="/locations", tags=["Locations"])
+
+@router.get("", response_model=List[Location])
+async def list_locations(
+    type: Optional[str] = None,
+    limit: Optional[int] = Query(100, le=1000),
+    skip: Optional[int] = 0
+):
+    db = await get_database()
+    
+    # Build filter
+    filter_dict = {}
+    if type:
+        filter_dict["type"] = type
+    
+    # Query database
+    cursor = db.locations.find(filter_dict).skip(skip).limit(limit).sort("createdAt", -1)
+    locations = await cursor.to_list(length=limit)
+    
+    # Add asset and work order counts to each location
+    for loc in locations:
+        location_id = str(loc["_id"])
+        loc["assetCount"] = await db.assets.count_documents({"location": location_id})
+        loc["activeWOs"] = await db.work_orders.count_documents({
+            "location": location_id,
+            "status": {"$in": ["open", "in-progress"]}
+        })
+        loc["_id"] = str(loc["_id"])
+    
+    return locations
+
+@router.get("/{location_id}", response_model=Location)
+async def get_location(location_id: str):
+    db = await get_database()
+    
+    if not ObjectId.is_valid(location_id):
+        raise HTTPException(status_code=400, detail="Invalid location ID")
+    
+    loc = await db.locations.find_one({"_id": ObjectId(location_id)})
+    
+    if not loc:
+        raise HTTPException(status_code=404, detail="Location not found")
+    
+    # Add asset and work order counts
+    loc["assetCount"] = await db.assets.count_documents({"location": location_id})
+    loc["activeWOs"] = await db.work_orders.count_documents({
+        "location": location_id,
+        "status": {"$in": ["open", "in-progress"]}
+    })
+    
+    loc["_id"] = str(loc["_id"])
+    return loc
+
+@router.post("", response_model=Location)
+async def create_location(location: LocationCreate):
+    db = await get_database()
+    
+    # Generate unique location number
+    loc_number = await generate_unique_number("locations", "LOC")
+    
+    # Create location document
+    loc_dict = location.dict()
+    loc_dict["locationId"] = loc_number
+    loc_dict = add_timestamps(loc_dict)
+    
+    # Insert into database
+    result = await db.locations.insert_one(loc_dict)
+    loc_dict["_id"] = str(result.inserted_id)
+    
+    return loc_dict
+
+@router.put("/{location_id}", response_model=Location)
+async def update_location(location_id: str, location: LocationUpdate):
+    db = await get_database()
+    
+    if not ObjectId.is_valid(location_id):
+        raise HTTPException(status_code=400, detail="Invalid location ID")
+    
+    # Build update dict (exclude None values)
+    update_dict = {k: v for k, v in location.dict().items() if v is not None}
+    
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    update_dict = add_timestamps(update_dict, is_update=True)
+    
+    # Update database
+    result = await db.locations.find_one_and_update(
+        {"_id": ObjectId(location_id)},
+        {"$set": update_dict},
+        return_document=True
+    )
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="Location not found")
+    
+    # Add asset and work order counts
+    result["assetCount"] = await db.assets.count_documents({"location": location_id})
+    result["activeWOs"] = await db.work_orders.count_documents({
+        "location": location_id,
+        "status": {"$in": ["open", "in-progress"]}
+    })
+    
+    result["_id"] = str(result["_id"])
+    return result
+
+@router.delete("/{location_id}")
+async def delete_location(location_id: str):
+    db = await get_database()
+    
+    if not ObjectId.is_valid(location_id):
+        raise HTTPException(status_code=400, detail="Invalid location ID")
+    
+    result = await db.locations.delete_one({"_id": ObjectId(location_id)})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Location not found")
+    
+    return {"message": "Location deleted successfully"}

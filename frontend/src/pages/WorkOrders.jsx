@@ -186,30 +186,35 @@ const WorkOrders = () => {
     setIsProgressModalOpen(true);
   };
 
-  const handleProgressSubmit = (progressData) => {
-    // In a real app, this would update the work order via API
-    console.log('Updating progress for work order:', selectedWorkOrder.id, progressData);
-    
-    // Update the local state
-    const updatedWorkOrders = workOrdersData.map(wo => 
-      wo.id === selectedWorkOrder.id 
-        ? { 
-            ...wo, 
-            status: progressData.status,
-            actualTime: progressData.actualTime,
-            notes: progressData.notes
-          } 
-        : wo
-    );
-    
-    setWorkOrdersData(updatedWorkOrders);
-    
-    // Show success notification
-    showSuccess('Progress Updated', `Work order ${selectedWorkOrder.id} progress has been updated to ${progressData.progress}%`);
-    
-    // Close the modal
-    setIsProgressModalOpen(false);
-    setSelectedWorkOrder(null);
+  const handleProgressSubmit = async (updatedWorkOrder) => {
+    try {
+      // Update the local state with the updated work order from the API
+      const updatedWorkOrders = workOrdersData.map(wo => 
+        (wo.id === updatedWorkOrder.id || wo._id === updatedWorkOrder._id)
+          ? { 
+              ...updatedWorkOrder,
+              id: updatedWorkOrder.id || updatedWorkOrder._id,
+              _id: updatedWorkOrder._id || updatedWorkOrder.id
+            } 
+          : wo
+      );
+      
+      setWorkOrdersData(updatedWorkOrders);
+      
+      // Show success notification with the actual progress percentage
+      const progressPercentage = updatedWorkOrder.actualTime && updatedWorkOrder.estimatedTime 
+        ? Math.round((updatedWorkOrder.actualTime / updatedWorkOrder.estimatedTime) * 100)
+        : 0;
+      
+      showSuccess('Progress Updated', `Work order ${updatedWorkOrder.workOrderNumber || updatedWorkOrder.id} progress updated to ${progressPercentage}%`);
+      
+      // Close the modal
+      setIsProgressModalOpen(false);
+      setSelectedWorkOrder(null);
+    } catch (error) {
+      console.error('Failed to update work order progress:', error);
+      showError('Update Error', 'Failed to update work order progress. Please try again.');
+    }
   };
 
   if (loading) {
@@ -377,8 +382,10 @@ const WorkOrders = () => {
                   <div className="text-center p-3 bg-slate-50 rounded-lg">
                     <CheckCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
                     <p className="text-xs text-slate-500 mb-1">Progress</p>
-                    <p className="text-sm font-bold text-slate-900">
-                      {wo.actualTime ? `${Math.round((wo.actualTime / wo.estimatedTime) * 100)}%` : '0%'}
+                    <p className="text-lg font-bold text-slate-900">
+                      {wo.actualTime && wo.estimatedTime 
+                        ? `${Math.round((wo.actualTime / wo.estimatedTime) * 100)}%` 
+                        : '0%'}
                     </p>
                   </div>
                 </div>

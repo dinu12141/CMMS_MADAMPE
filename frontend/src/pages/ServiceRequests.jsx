@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -13,18 +13,66 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
-import { serviceRequests } from '../mockData';
+import { serviceRequestsApi } from '../services/api';
+import { useNotification } from '../hooks/useNotification';
+import ServiceRequestModal from '../components/ServiceRequestModal';
 
 const ServiceRequests = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [serviceRequests, setServiceRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Modal states
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState('create');
+  const [currentRequest, setCurrentRequest] = useState(null);
+  
+  const { showSuccess, showError, showWarning } = useNotification();
 
-  const filteredRequests = serviceRequests.filter(req => {
-    const matchesSearch = req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          req.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || req.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Load service requests on component mount
+  useEffect(() => {
+    loadServiceRequests();
+  }, []);
+
+  // Apply filters when service requests or filter values change
+  useEffect(() => {
+    applyFilters();
+  }, [serviceRequests, searchTerm, statusFilter]);
+
+  const loadServiceRequests = async () => {
+    try {
+      setLoading(true);
+      const data = await serviceRequestsApi.getAll();
+      setServiceRequests(data);
+    } catch (err) {
+      console.error('Failed to load service requests', err);
+      showError('Load Error', 'Failed to load service requests. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyFilters = () => {
+    let result = serviceRequests;
+    
+    // Search term filter
+    if (searchTerm) {
+      result = result.filter(req => 
+        req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        req.requestNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        req.requestedBy.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Status filter
+    if (statusFilter !== 'all') {
+      result = result.filter(req => req.status === statusFilter);
+    }
+    
+    setFilteredRequests(result);
+  };
 
   const getPriorityColor = (priority) => {
     switch (priority) {
@@ -52,6 +100,99 @@ const ServiceRequests = () => {
     converted: serviceRequests.filter(r => r.status === 'converted').length
   };
 
+  const handleCreateRequest = () => {
+    setCurrentRequest(null);
+    setModalMode('create');
+    setShowModal(true);
+  };
+
+  const handleEditRequest = (request) => {
+    setCurrentRequest(request);
+    setModalMode('edit');
+    setShowModal(true);
+  };
+
+  const handleSaveRequest = async (requestData) => {
+    try {
+      if (modalMode === 'create') {
+        // Create new service request
+        const newRequest = await serviceRequestsApi.create(requestData);
+        setServiceRequests([...serviceRequests, newRequest]);
+        showSuccess('Service Request Created', 'New service request has been successfully created');
+      } else if (modalMode === 'edit') {
+        // Update existing service request
+        const updatedRequest = await serviceRequestsApi.update(currentRequest.id, requestData);
+        setServiceRequests(serviceRequests.map(req => 
+          req.id === currentRequest.id ? updatedRequest : req
+        ));
+        showSuccess('Service Request Updated', 'Service request has been successfully updated');
+      }
+      setShowModal(false);
+      setCurrentRequest(null);
+    } catch (err) {
+      console.error('Failed to save service request', err);
+      showError('Save Error', `Failed to save service request: ${err.message}`);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setCurrentRequest(null);
+  };
+
+  const handleAssignRequest = async (requestId) => {
+    try {
+      // In a real app, this would open a modal to select who to assign to
+      // For now, we'll just assign to a default user
+      const updatedRequest = await serviceRequestsApi.update(requestId, {
+        status: 'assigned',
+        assignedTo: 'John Smith' // This would be selected by the user in a real app
+      });
+      
+      setServiceRequests(serviceRequests.map(req => 
+        req.id === requestId ? updatedRequest : req
+      ));
+      
+      showSuccess('Request Assigned', 'Service request has been assigned successfully');
+    } catch (err) {
+      console.error('Failed to assign service request', err);
+      showError('Assignment Error', `Failed to assign service request: ${err.message}`);
+    }
+  };
+
+  const handleConvertToWO = async (request) => {
+    try {
+      // In a real app, this would open a modal to create the work order
+      // For now, we'll just update the status and add a mock WO number
+      const woNumber = `WO-${Math.floor(1000 + Math.random() * 9000)}`;
+      
+      const updatedRequest = await serviceRequestsApi.update(request.id, {
+        status: 'converted',
+        convertedToWO: woNumber
+      });
+      
+      setServiceRequests(serviceRequests.map(req => 
+        req.id === request.id ? updatedRequest : req
+      ));
+      
+      showSuccess('Request Converted', `Service request has been converted to Work Order ${woNumber}`);
+    } catch (err) {
+      console.error('Failed to convert service request', err);
+      showError('Conversion Error', `Failed to convert service request: ${err.message}`);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <FileText className="w-12 h-12 text-slate-400 mx-auto animate-spin" />
+          <p className="mt-2 text-slate-500">Loading service requests...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Header 
@@ -71,7 +212,7 @@ const ServiceRequests = () => {
               className="w-80"
             />
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700">
+          <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateRequest}>
             <Plus className="w-4 h-4 mr-2" />
             New Request
           </Button>
@@ -103,7 +244,7 @@ const ServiceRequests = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-3">
                       <FileText className="w-5 h-5 text-blue-600" />
-                      <span className="font-mono text-sm font-medium text-slate-600">{request.id}</span>
+                      <span className="font-mono text-sm font-medium text-slate-600">{request.requestNumber}</span>
                       <Badge className={getPriorityColor(request.priority)}>
                         {request.priority}
                       </Badge>
@@ -122,21 +263,21 @@ const ServiceRequests = () => {
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-slate-400" />
                         <div>
-                          <p className="text-xs text-slate-500">Requested By</p>
+                          <p className="text-xs text-slate-500 mb-1">Requested By</p>
                           <p className="text-sm font-medium text-slate-900">{request.requestedBy}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <MapPin className="w-4 h-4 text-slate-400" />
                         <div>
-                          <p className="text-xs text-slate-500">Location</p>
+                          <p className="text-xs text-slate-500 mb-1">Location</p>
                           <p className="text-sm font-medium text-slate-900">{request.location}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4 text-slate-400" />
                         <div>
-                          <p className="text-xs text-slate-500">Created</p>
+                          <p className="text-xs text-slate-500 mb-1">Created</p>
                           <p className="text-sm font-medium text-slate-900">
                             {new Date(request.createdDate).toLocaleDateString()}
                           </p>
@@ -145,7 +286,7 @@ const ServiceRequests = () => {
                       <div className="flex items-center gap-2">
                         <User className="w-4 h-4 text-slate-400" />
                         <div>
-                          <p className="text-xs text-slate-500">Department</p>
+                          <p className="text-xs text-slate-500 mb-1">Department</p>
                           <p className="text-sm font-medium text-slate-900">{request.department}</p>
                         </div>
                       </div>
@@ -173,13 +314,13 @@ const ServiceRequests = () => {
                   <div className="flex gap-2">
                     {request.status === 'open' && (
                       <>
-                        <Button variant="outline" size="sm">Assign</Button>
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700">Convert to WO</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleAssignRequest(request.id)}>Assign</Button>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleConvertToWO(request)}>Convert to WO</Button>
                       </>
                     )}
                     {request.status === 'assigned' && (
                       <>
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700">Convert to WO</Button>
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleConvertToWO(request)}>Convert to WO</Button>
                         <Button variant="outline" size="sm">
                           <XCircle className="w-4 h-4 mr-1" />
                           Close
@@ -203,6 +344,14 @@ const ServiceRequests = () => {
           </div>
         )}
       </div>
+      
+      <ServiceRequestModal
+        isOpen={showModal}
+        onClose={handleCloseModal}
+        onSubmit={handleSaveRequest}
+        serviceRequest={currentRequest}
+        mode={modalMode}
+      />
     </div>
   );
 };

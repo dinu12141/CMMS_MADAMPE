@@ -14,6 +14,9 @@ from datetime import datetime, timezone
 from routes.work_orders import router as work_orders_router
 from routes.assets import router as assets_router
 from routes.inventory import router as inventory_router
+from routes.service_requests import router as service_requests_router
+from routes.locations import router as locations_router
+from routes.documents import router as documents_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -77,6 +80,9 @@ app.include_router(api_router)
 app.include_router(work_orders_router, prefix="/api")
 app.include_router(assets_router, prefix="/api")
 app.include_router(inventory_router, prefix="/api")
+app.include_router(service_requests_router, prefix="/api")
+app.include_router(locations_router, prefix="/api")
+app.include_router(documents_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,
