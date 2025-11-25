@@ -139,6 +139,8 @@ async def create_asset(
         
         # Handle image upload
         image_url = None
+        logger.info(f"Image object: {image}")
+        logger.info(f"Image filename: {getattr(image, 'filename', 'No filename') if image else 'No image'}")
         if image and image.filename:
             try:
                 logger.info(f"Processing image: {image.filename}")
@@ -150,6 +152,7 @@ async def create_asset(
                 
                 # Save the file
                 content = await image.read()
+                logger.info(f"Image content length: {len(content)}")
                 with open(file_path, "wb") as buffer:
                     buffer.write(content)
                 
@@ -158,10 +161,12 @@ async def create_asset(
                 asset_dict["imageUrl"] = image_url
                 logger.info(f"Image saved successfully: {image_url}")
             except Exception as e:
-                logger.error(f"Error saving image: {e}")
+                logger.error(f"Error saving image: {e}", exc_info=True)
                 # Don't fail the entire asset creation if image upload fails
                 pass
-        
+        else:
+            logger.info("No image to process")
+
         # Set default dates if not provided (convert to datetime for MongoDB)
         today = datetime.utcnow().date()
         asset_dict["purchaseDate"] = asset_dict.get("purchaseDate") or today

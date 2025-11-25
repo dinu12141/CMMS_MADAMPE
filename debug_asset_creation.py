@@ -13,14 +13,14 @@ try:
         location_id = locations[0]["_id"]
         print(f"Using location ID: {location_id}")
         
-        # Test data
+        # Test data as form data
         data = {
             "name": "Test Asset",
             "location": location_id
         }
         
-        # Send POST request
-        response = requests.post(url, json=data)
+        # Send POST request with form data
+        response = requests.post(url, data=data)
         
         print(f"Status Code: {response.status_code}")
         print(f"Response Headers: {response.headers}")

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { ScrollArea } from './ui/scroll-area';
 import { 
   Calendar, 
   User, 
@@ -9,7 +10,14 @@ import {
   AlertCircle, 
   CheckCircle,
   Wrench,
-  FileText
+  FileText,
+  Factory,
+  Tag,
+  Hash,
+  MapPin,
+  DollarSign,
+  Package,
+  Plus
 } from 'lucide-react';
 import { workOrdersApi } from '../services/api';
 
@@ -167,7 +175,7 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
                           <img 
                             src={`http://localhost:8000${asset.imageUrl}`} 
                             alt={asset.name} 
-                            className="w-48 h-48 object-contain rounded border"
+                            className="w-64 h-64 object-contain rounded border"
                           />
                         </div>
                       )}
@@ -282,22 +290,7 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
 
                   <div>
                     <h3 className="text-sm font-medium text-slate-500 mb-1">Metrics</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 bg-slate-50 rounded-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <DollarSign className="w-4 h-4 text-slate-400" />
-                          <p className="text-xs text-slate-500">Maintenance Cost</p>
-                        </div>
-                        <p className="font-bold">LKR {asset.maintenanceCost?.toLocaleString() || '0'}</p>
-                      </div>
-                      <div className="p-3 bg-slate-50 rounded-lg">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Clock className="w-4 h-4 text-slate-400" />
-                          <p className="text-xs text-slate-500">Downtime</p>
-                        </div>
-                        <p className="font-bold">{asset.downtime || '0'} hours</p>
-                      </div>
-                    </div>
+
                   </div>
                 </div>
               </div>

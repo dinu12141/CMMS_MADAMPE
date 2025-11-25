@@ -15,7 +15,7 @@ const apiCall = async (url, options = {}) => {
     
     const response = await fetch(url, {
       headers: {
-        // Remove Content-Type header for FormData requests
+        // Only set Content-Type for JSON requests, let browser set it for FormData
         ...(!options.body || !(options.body instanceof FormData) ? {'Content-Type': 'application/json'} : {}),
         ...options.headers,
       },

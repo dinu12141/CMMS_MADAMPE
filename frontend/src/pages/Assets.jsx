@@ -22,13 +22,12 @@ import { useNotification } from '../hooks/useNotification';
 
 const Assets = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [criticalityFilter, setCriticalityFilter] = useState('all');
   const [locationFilter, setLocationFilter] = useState('all');
   
   const [assets, setAssets] = useState([]);
-  const [locations, setLocations] = useState([]); // Add locations state
+  const [locations, setLocations] = useState([]);
   const [filteredAssets, setFilteredAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -44,38 +43,28 @@ const Assets = () => {
 
   const { showSuccess, showWarning, showError } = useNotification();
 
-  // Updated categories as per user request with "All" at the top
-  const categories = [
-    'all',
-    'VCO Plant',
-    'Madampe Plant (DS)',
-    'Madampe plant (CS)',
-    'Wet Section ( DS)',
-    'Pairing Section',
-    'Sifter Section',
-    'Thambagalla Section',
-    'Boiler Section',
-    'Generator Section',
-    'Way Bridge Section'
-  ];
-
   // Load assets and locations on component mount
   useEffect(() => {
     loadAssets();
-    loadLocations(); // Load locations
+    loadLocations();
   }, []);
 
   // Apply filters when assets or filter values change
   useEffect(() => {
     applyFilters();
-  }, [assets, searchTerm, categoryFilter, statusFilter, criticalityFilter, locationFilter]);
+  }, [assets, searchTerm, statusFilter, criticalityFilter, locationFilter]);
 
   const loadAssets = async () => {
     try {
       setLoading(true);
       // Fetch assets from the API
       const data = await assetsApi.getAll();
-      setAssets(data);
+      // Ensure each asset has an id property (handle both id and _id)
+      const assetsWithId = data.map(asset => ({
+        ...asset,
+        id: asset.id || asset._id
+      }));
+      setAssets(assetsWithId);
       
       // Show a notification when assets are loaded
       showSuccess('Assets Loaded', `Successfully loaded ${data.length} assets`);
@@ -104,8 +93,16 @@ const Assets = () => {
     if (!locationId) return 'Unknown Location';
     
     // Find location by ID
-    const location = locations.find(loc => loc.id === locationId);
+    const location = locations.find(loc => (loc._id || loc.id) === locationId);
     return location ? location.name : 'Unknown Location';
+  };
+
+  const getLocationIdByName = (locationName) => {
+    if (!locationName || locationName === 'all') return 'all';
+    
+    // Find location by name
+    const location = locations.find(loc => loc.name === locationName);
+    return location ? (location._id || location.id) : null;
   };
 
   const applyFilters = () => {
@@ -115,16 +112,11 @@ const Assets = () => {
     if (searchTerm) {
       result = result.filter(asset => 
         asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        asset.assetNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        asset.manufacturer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        asset.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        asset.serialNumber.toLowerCase().includes(searchTerm.toLowerCase())
+        (asset.assetNumber && asset.assetNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (asset.manufacturer && asset.manufacturer.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (asset.model && asset.model.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (asset.serialNumber && asset.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()))
       );
-    }
-    
-    // Category filter
-    if (categoryFilter !== 'all') {
-      result = result.filter(asset => asset.category === categoryFilter);
     }
     
     // Status filter
@@ -139,10 +131,7 @@ const Assets = () => {
     
     // Location filter
     if (locationFilter !== 'all') {
-      result = result.filter(asset => {
-        const locationName = getLocationName(asset.location);
-        return locationName === locationFilter;
-      });
+      result = result.filter(asset => asset.location === locationFilter);
     }
     
     setFilteredAssets(result);
@@ -179,9 +168,9 @@ const Assets = () => {
   };
 
   // Get unique values for other filters
-  const statuses = ['all', ...new Set(assets.map(a => a.status))];
-  const criticalities = ['all', ...new Set(assets.map(a => a.criticality))];
-  const locationNames = ['all', ...new Set(assets.map(a => getLocationName(a.location)))];
+  const statuses = ['all', ...new Set(assets.map(a => a.status).filter(Boolean))];
+  const criticalities = ['all', ...new Set(assets.map(a => a.criticality).filter(Boolean))];
+  const locationNames = ['all', ...new Set(locations.map(loc => loc.name))];
 
   const handleViewDetails = (asset) => {
     setSelectedAsset(asset);
@@ -217,15 +206,31 @@ const Assets = () => {
       if (isEditing) {
         // Update existing asset via API
         const updatedAsset = await assetsApi.update(selectedAsset.id, assetData);
+        // Ensure the updated asset has an id property
+        const assetWithId = {
+          ...updatedAsset,
+          id: updatedAsset.id || updatedAsset._id
+        };
         setAssets(assets.map(asset => 
-          asset.id === selectedAsset.id ? updatedAsset : asset
+          asset.id === selectedAsset.id ? assetWithId : asset
         ));
         showSuccess('Asset Updated', `Asset ${assetData.name} has been successfully updated`);
+        
+        // Refresh locations data to update asset counts
+        loadLocations();
       } else {
         // Create new asset via API
         const newAsset = await assetsApi.create(assetData);
-        setAssets([...assets, newAsset]);
+        // Ensure the new asset has an id property
+        const assetWithId = {
+          ...newAsset,
+          id: newAsset.id || newAsset._id
+        };
+        setAssets([...assets, assetWithId]);
         showSuccess('Asset Created', `New asset ${assetData.name} has been successfully created`);
+        
+        // Refresh locations data to update asset counts
+        loadLocations();
       }
       setShowFormModal(false);
     } catch (err) {
@@ -296,22 +301,7 @@ const Assets = () => {
         {/* Advanced Filters - Made smaller */}
         {advancedFiltersOpen && (
           <div className="bg-white rounded-lg border border-slate-200 p-3 mb-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div>
-                <label className="text-xs font-medium text-slate-700 mb-1 block">Category</label>
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="w-full border border-slate-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                >
-                  {categories.map(category => (
-                    <option key={category} value={category}>
-                      {category === 'all' ? 'All Categories' : category}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-xs font-medium text-slate-700 mb-1 block">Status</label>
                 <select
@@ -349,9 +339,10 @@ const Assets = () => {
                   onChange={(e) => setLocationFilter(e.target.value)}
                   className="w-full border border-slate-300 rounded-md px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                 >
-                  {locationNames.map(location => (
-                    <option key={location} value={location}>
-                      {location === 'all' ? 'All Locations' : location}
+                  <option key="all" value="all">All Locations</option>
+                  {locations.map(location => (
+                    <option key={location._id || location.id} value={location._id || location.id}>
+                      {location.name}
                     </option>
                   ))}
                 </select>
@@ -364,7 +355,6 @@ const Assets = () => {
                 size="sm"
                 className="h-7 text-xs px-2"
                 onClick={() => {
-                  setCategoryFilter('all');
                   setStatusFilter('all');
                   setCriticalityFilter('all');
                   setLocationFilter('all');
@@ -375,18 +365,6 @@ const Assets = () => {
             </div>
           </div>
         )}
-
-        {/* Category Filter Chips - Only showing "All" */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          <Button
-            key="all"
-            variant={categoryFilter === 'all' ? 'default' : 'outline'}
-            onClick={() => setCategoryFilter('all')}
-            className="whitespace-nowrap h-8 text-sm px-3"
-          >
-            All
-          </Button>
-        </div>
 
         {/* Results Summary */}
         <div className="mb-3">
@@ -402,9 +380,16 @@ const Assets = () => {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Package className="w-5 h-5 text-blue-600" />
-                    </div>
+                    {/* Asset Image Preview */}
+                    {asset.imageUrl && (
+                      <div className="w-16 h-16 flex-shrink-0">
+                        <img 
+                          src={`http://localhost:8000${asset.imageUrl}`} 
+                          alt={asset.name} 
+                          className="w-full h-full object-contain rounded border"
+                        />
+                      </div>
+                    )}
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-base font-bold text-slate-900">{asset.name}</h3>
@@ -442,26 +427,6 @@ const Assets = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div className="text-center p-2 bg-slate-50 rounded">
-                    <TrendingUp className="w-4 h-4 text-slate-400 mx-auto mb-0.5" />
-                    <p className="text-xs text-slate-500">Maint. Cost</p>
-                    <p className="text-xs font-bold text-slate-900">LKR {asset.maintenanceCost?.toLocaleString()}</p>
-                  </div>
-                  <div className="text-center p-2 bg-slate-50 rounded">
-                    <AlertTriangle className="w-4 h-4 text-slate-400 mx-auto mb-0.5" />
-                    <p className="text-xs text-slate-500">Downtime</p>
-                    <p className="text-xs font-bold text-slate-900">{asset.downtime}h</p>
-                  </div>
-                  <div className="text-center p-2 bg-slate-50 rounded">
-                    <Calendar className="w-4 h-4 text-slate-400 mx-auto mb-0.5" />
-                    <p className="text-xs text-slate-500">Next PM</p>
-                    <p className="text-xs font-bold text-slate-900">
-                      {asset.nextMaintenance ? new Date(asset.nextMaintenance).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'N/A'}
-                    </p>
-                  </div>
-                </div>
-
                 <div className="flex gap-2">
                   <Button 
                     variant="outline" 
@@ -493,7 +458,6 @@ const Assets = () => {
               className="mt-3 h-8 text-xs"
               onClick={() => {
                 setSearchTerm('');
-                setCategoryFilter('all');
                 setStatusFilter('all');
                 setCriticalityFilter('all');
                 setLocationFilter('all');
