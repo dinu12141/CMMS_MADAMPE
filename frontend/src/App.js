@@ -16,36 +16,39 @@ import AdminDashboard from "./pages/AdminDashboard";
 import BudgetCalculations from "./pages/BudgetCalculations";
 import EmailCommunication from "./pages/EmailCommunication";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { AuthProvider } from "./contexts/AuthContext";
 
 function App() {
   return (
-    <NotificationProvider>
-      <BrowserRouter>
-        <div className="flex min-h-screen bg-slate-50">
-          {/* Sidebar */}
-          <Sidebar />
-          
-          {/* Main Content */}
-          <div className="flex-1 ml-64">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/work-orders" element={<WorkOrders />} />
-              <Route path="/assets" element={<Assets />} />
-              <Route path="/preventive-maintenance" element={<PreventiveMaintenance />} />
-              <Route path="/inventory" element={<Inventory />} />
-              <Route path="/requests" element={<ServiceRequests />} />
-              <Route path="/locations" element={<Locations />} />
-              <Route path="/documents" element={<Documents />} />
-              <Route path="/analytics" element={<Analytics />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/budget" element={<BudgetCalculations />} />
-              <Route path="/email" element={<EmailCommunication />} />
-            </Routes>
+    <AuthProvider>
+      <NotificationProvider>
+        <BrowserRouter>
+          <div className="flex min-h-screen bg-slate-50">
+            {/* Sidebar */}
+            <Sidebar />
+            
+            {/* Main Content */}
+            <div className="flex-1 ml-64">
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/work-orders" element={<WorkOrders />} />
+                <Route path="/assets" element={<Assets />} />
+                <Route path="/preventive-maintenance" element={<PreventiveMaintenance />} />
+                <Route path="/inventory" element={<Inventory />} />
+                <Route path="/requests" element={<ServiceRequests />} />
+                <Route path="/locations" element={<Locations />} />
+                <Route path="/documents" element={<Documents />} />
+                <Route path="/analytics" element={<Analytics />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/budget" element={<BudgetCalculations />} />
+                <Route path="/email" element={<EmailCommunication />} />
+              </Routes>
+            </div>
           </div>
-        </div>
-      </BrowserRouter>
-    </NotificationProvider>
+        </BrowserRouter>
+      </NotificationProvider>
+    </AuthProvider>
   );
 }
 

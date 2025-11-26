@@ -49,7 +49,9 @@ const Locations = () => {
     try {
       setLoading(true);
       const data = await locationsApi.getAll();
-      setLocations(data);
+      // Map API response to ensure every location object has a valid id property derived from _id
+      const dataWithIds = data.map(loc => ({ ...loc, id: loc.id || loc._id }));
+      setLocations(dataWithIds);
     } catch (err) {
       console.error('Failed to load locations', err);
       showError('Load Error', 'Failed to load locations. Please try again.');
@@ -109,6 +111,8 @@ const Locations = () => {
           loc.id === currentLocation.id ? updatedLocation : loc
         ));
         showSuccess('Location Updated', 'Location has been successfully updated');
+        // Immediately refresh locations data from backend
+        await loadLocations();
       }
       setShowFormModal(false);
       setCurrentLocation(null);
@@ -211,7 +215,7 @@ const Locations = () => {
                   {location.image ? (
                     <div className="mb-4">
                       <img 
-                        src={location.image} 
+                        src={`http://localhost:8000${location.image}`} 
                         alt={location.name} 
                         className="w-full h-48 object-cover rounded-lg"
                       />
@@ -347,6 +351,14 @@ const Locations = () => {
         onClose={handleCloseDetailModal}
         location={currentLocation}
         onEdit={handleEditLocation}
+        onLocationUpdated={(updatedLocation) => {
+          // Update the locations list with the new data
+          setLocations(locations.map(loc => 
+            loc.id === updatedLocation.id ? updatedLocation : loc
+          ));
+          // Also update the current location
+          setCurrentLocation(updatedLocation);
+        }}
       />
     </div>
   );

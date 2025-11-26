@@ -10,21 +10,41 @@ import {
   Image, 
   FileText,
   Edit,
-  Upload
+  Upload,
+  Loader2
 } from 'lucide-react';
+import { locationsApi } from '../services/api';
 
-const LocationDetailView = ({ isOpen, onClose, location, onEdit }) => {
+const LocationDetailView = ({ isOpen, onClose, location, onEdit, onLocationUpdated }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setImagePreview(event.target.result);
-      };
-      reader.readAsDataURL(file);
+    if (file && location) {
+      setUploading(true);
+      try {
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setImagePreview(event.target.result);
+        };
+        reader.readAsDataURL(file);
+        
+        // Upload to backend
+        const response = await locationsApi.uploadImage(location.id, file);
+        
+        // Update parent component with new data
+        if (onLocationUpdated) {
+          onLocationUpdated(response.location);
+        }
+      } catch (error) {
+        console.error('Image upload failed:', error);
+        alert('Failed to upload image: ' + error.message);
+      } finally {
+        setUploading(false);
+      }
     }
   };
 
@@ -163,10 +183,21 @@ const LocationDetailView = ({ isOpen, onClose, location, onEdit }) => {
                     </div>
                     
                     <div className="border-2 border-dashed border-slate-300 rounded-lg h-48 flex items-center justify-center">
-                      {imagePreview ? (
+                      {uploading ? (
+                        <div className="flex flex-col items-center">
+                          <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
+                          <p className="text-sm text-slate-500 mt-2">Uploading...</p>
+                        </div>
+                      ) : imagePreview ? (
                         <img 
                           src={imagePreview} 
                           alt="Location preview" 
+                          className="w-full h-full object-cover rounded-lg"
+                        />
+                      ) : location?.image ? (
+                        <img 
+                          src={`http://localhost:8000${location.image}`} 
+                          alt="Location" 
                           className="w-full h-full object-cover rounded-lg"
                         />
                       ) : (

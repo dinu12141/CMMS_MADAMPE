@@ -20,8 +20,10 @@ import {
   Plus
 } from 'lucide-react';
 import { workOrdersApi } from '../services/api';
+import ProgressUpdateModal from './ProgressUpdateModal';
+import PermissionButton from './PermissionButton';
 
-const AssetDetailModal = ({ isOpen, onClose, asset }) => {
+const AssetDetailModal = ({ isOpen, onClose, asset, onEdit }) => {
   const [activeTab, setActiveTab] = useState('details');
   const [relatedWorkOrders, setRelatedWorkOrders] = useState([]);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState(null);
@@ -29,13 +31,23 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
 
   // Load related work orders when asset changes
   useEffect(() => {
-    if (asset) {
-      // In a real app, this would fetch from the API
-      // const relatedWOs = await workOrdersApi.getByAssetId(asset.id);
-      // For now, we'll filter mock data
-      const relatedWOs = workOrders.filter(wo => wo.assetId === asset.id);
-      setRelatedWorkOrders(relatedWOs);
-    }
+    const loadRelatedWorkOrders = async () => {
+      if (asset && asset.id) {
+        try {
+          // Fetch real work orders from the API
+          const relatedWOs = await workOrdersApi.getByAssetId(asset.id);
+          setRelatedWorkOrders(relatedWOs);
+        } catch (error) {
+          console.error('Failed to load related work orders:', error);
+          // Fallback to empty array if API call fails
+          setRelatedWorkOrders([]);
+        }
+      } else {
+        setRelatedWorkOrders([]);
+      }
+    };
+
+    loadRelatedWorkOrders();
   }, [asset]);
 
   if (!asset) return null;
@@ -391,7 +403,9 @@ const AssetDetailModal = ({ isOpen, onClose, asset }) => {
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button>Edit Asset</Button>
+          <PermissionButton page="assets" onClick={() => onEdit(asset)}>
+            Edit Asset
+          </PermissionButton>
         </div>
         
         <ProgressUpdateModal

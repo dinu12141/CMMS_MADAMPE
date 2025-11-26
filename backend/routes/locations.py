@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
 from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
@@ -9,6 +10,12 @@ from models import Location, LocationCreate, LocationUpdate
 from database import get_database, generate_unique_number, add_timestamps
 
 router = APIRouter(prefix="/locations", tags=["Locations"])
+
+# Ensure locations images directory exists
+LOCATIONS_IMAGES_DIR = "uploaded_assets"
+if not os.path.exists(LOCATIONS_IMAGES_DIR):
+    os.makedirs(LOCATIONS_IMAGES_DIR)
+
 
 @router.get("", response_model=List[Location])
 async def list_locations(
@@ -27,7 +34,7 @@ async def list_locations(
     cursor = db.locations.find(filter_dict).skip(skip).limit(limit).sort("createdAt", -1)
     locations = await cursor.to_list(length=limit)
     
-    # Add asset and work order counts to each location
+    # Add asset and work order counts to each location using real-time aggregation
     for loc in locations:
         location_id = str(loc["_id"])
         loc["assetCount"] = await db.assets.count_documents({"location": location_id})
@@ -51,7 +58,7 @@ async def get_location(location_id: str):
     if not loc:
         raise HTTPException(status_code=404, detail="Location not found")
     
-    # Add asset and work order counts
+    # Add asset and work order counts using real-time aggregation
     loc["assetCount"] = await db.assets.count_documents({"location": location_id})
     loc["activeWOs"] = await db.work_orders.count_documents({
         "location": location_id,
@@ -104,7 +111,7 @@ async def update_location(location_id: str, location: LocationUpdate):
     if not result:
         raise HTTPException(status_code=404, detail="Location not found")
     
-    # Add asset and work order counts
+    # Add asset and work order counts using real-time aggregation
     result["assetCount"] = await db.assets.count_documents({"location": location_id})
     result["activeWOs"] = await db.work_orders.count_documents({
         "location": location_id,
@@ -127,3 +134,51 @@ async def delete_location(location_id: str):
         raise HTTPException(status_code=404, detail="Location not found")
     
     return {"message": "Location deleted successfully"}
+
+# New endpoint for image upload
+@router.post("/{location_id}/image")
+async def upload_location_image(location_id: str, file: UploadFile = File(...)):
+    db = await get_database()
+    
+    if not ObjectId.is_valid(location_id):
+        raise HTTPException(status_code=400, detail="Invalid location ID")
+    
+    # Check if location exists
+    location = await db.locations.find_one({"_id": ObjectId(location_id)})
+    if not location:
+        raise HTTPException(status_code=404, detail="Location not found")
+    
+    # Save file to disk
+    file_extension = os.path.splitext(file.filename)[1]
+    file_name = f"location_{location_id}{file_extension}"
+    file_path = os.path.join(LOCATIONS_IMAGES_DIR, file_name)
+    
+    with open(file_path, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+    
+    # Update location with image URL
+    image_url = f"/api/locations/{location_id}/image"
+    result = await db.locations.find_one_and_update(
+        {"_id": ObjectId(location_id)},
+        {"$set": {"image": image_url, "updatedAt": datetime.utcnow()}},
+        return_document=True
+    )
+    
+    result["_id"] = str(result["_id"])
+    return {"imageUrl": image_url, "location": result}
+
+# New endpoint to serve location images
+@router.get("/{location_id}/image")
+async def get_location_image(location_id: str):
+    if not ObjectId.is_valid(location_id):
+        raise HTTPException(status_code=400, detail="Invalid location ID")
+    
+    # Try to find the file with any extension
+    for ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+        file_path = os.path.join(LOCATIONS_IMAGES_DIR, f"location_{location_id}{ext}")
+        if os.path.exists(file_path):
+            return FileResponse(file_path)
+    
+    # If still not found, return 404
+    raise HTTPException(status_code=404, detail="Image not found")

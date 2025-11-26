@@ -19,6 +19,8 @@ import AssetDetailModal from '../components/AssetDetailModal';
 import AssetHistoryModal from '../components/AssetHistoryModal';
 import AssetFormModal from '../components/AssetFormModal';
 import { useNotification } from '../hooks/useNotification';
+import PermissionButton from '../components/PermissionButton';
+import { assets as mockAssets, locations as mockLocations } from '../mockData';
 
 const Assets = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,6 +33,7 @@ const Assets = () => {
   const [filteredAssets, setFilteredAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [usingMockData, setUsingMockData] = useState(false);
   
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -65,13 +68,21 @@ const Assets = () => {
         id: asset.id || asset._id
       }));
       setAssets(assetsWithId);
+      setUsingMockData(false);
       
       // Show a notification when assets are loaded
       showSuccess('Assets Loaded', `Successfully loaded ${data.length} assets`);
     } catch (err) {
-      setError('Failed to load assets');
-      showError('Load Error', 'Failed to load assets. Please try again.');
-      console.error(err);
+      console.error('Error fetching assets from backend:', err);
+      // Fallback to mock data
+      const assetsWithId = mockAssets.map(asset => ({
+        ...asset,
+        id: asset.id || asset._id
+      }));
+      setAssets(assetsWithId);
+      setUsingMockData(true);
+      setError('Using mock data - backend unavailable');
+      showError('Load Error', 'Failed to load assets. Using mock data instead.');
     } finally {
       setLoading(false);
     }
@@ -83,8 +94,12 @@ const Assets = () => {
       const data = await locationsApi.getAll();
       setLocations(data);
     } catch (err) {
-      console.error('Failed to load locations', err);
-      showError('Load Error', 'Failed to load locations. Please try again.');
+      console.error('Failed to load locations from backend:', err);
+      // Fallback to mock data
+      setLocations(mockLocations);
+      if (!usingMockData) {
+        showError('Load Error', 'Failed to load locations. Using mock data instead.');
+      }
     }
   };
 
@@ -226,8 +241,12 @@ const Assets = () => {
           ...newAsset,
           id: newAsset.id || newAsset._id
         };
+        // Add the new asset to the list
         setAssets([...assets, assetWithId]);
         showSuccess('Asset Created', `New asset ${assetData.name} has been successfully created`);
+        
+        // Refresh the assets list to ensure we have the latest data from the database
+        await loadAssets();
         
         // Refresh locations data to update asset counts
         loadLocations();
@@ -250,7 +269,7 @@ const Assets = () => {
     );
   }
 
-  if (error) {
+  if (error && !usingMockData) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
@@ -266,7 +285,10 @@ const Assets = () => {
     <div className="min-h-screen bg-slate-50">
       <Header 
         title="Assets & Equipment" 
-        subtitle="Track and manage all facility assets and equipment"
+        subtitle={usingMockData 
+          ? "Using mock data - backend unavailable" 
+          : "Track and manage all facility assets and equipment"
+        }
       />
       
       <div className="p-4">
@@ -292,10 +314,14 @@ const Assets = () => {
               Filters
             </Button>
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 h-9 px-3 text-sm" onClick={handleAddAsset}>
+          <PermissionButton 
+            page="assets"
+            className="bg-blue-600 hover:bg-blue-700 h-9 px-3 text-sm" 
+            onClick={handleAddAsset}
+          >
             <Plus className="w-4 h-4 mr-1" />
             Add Asset
-          </Button>
+          </PermissionButton>
         </div>
 
         {/* Advanced Filters - Made smaller */}
@@ -436,6 +462,14 @@ const Assets = () => {
                   >
                     View History
                   </Button>
+                  <PermissionButton 
+                    page="assets"
+                    size="sm" 
+                    className="flex-1 h-8 text-xs px-2"
+                    onClick={() => handleEditAsset(asset)}
+                  >
+                    Edit
+                  </PermissionButton>
                   <Button 
                     size="sm" 
                     className="flex-1 bg-blue-600 hover:bg-blue-700 h-8 text-xs px-2"
@@ -474,6 +508,10 @@ const Assets = () => {
         isOpen={showDetailModal}
         onClose={() => setShowDetailModal(false)}
         asset={selectedAsset}
+        onEdit={(asset) => {
+          setShowDetailModal(false);
+          handleEditAsset(asset);
+        }}
       />
       
       <AssetHistoryModal

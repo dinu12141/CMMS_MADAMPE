@@ -1,70 +1,50 @@
-from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File
 from typing import List, Optional
-from datetime import datetime, date
-from bson import ObjectId
+from datetime import date, datetime
+import json
+import logging
 import os
 import uuid
 from pathlib import Path
-import json
-import logging
 
 from models import Asset, AssetCreate, AssetUpdate
 from database import get_database, generate_unique_number, add_timestamps
 
-# Set up logging
+# Configure logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 router = APIRouter(prefix="/assets", tags=["Assets"])
 
-# Create uploads directory if it doesn't exist
-UPLOAD_DIR = Path("uploaded_assets")
-UPLOAD_DIR.mkdir(exist_ok=True)
-
-# Helper function to update location asset count
-async def update_location_asset_count(db, location_id):
-    if location_id:
-        asset_count = await db.assets.count_documents({"location": location_id})
-        await db.locations.update_one(
-            {"_id": ObjectId(location_id)},
-            {"$set": {"assetCount": asset_count}}
-        )
+# Ensure assets images directory exists inside uploads
+ASSETS_IMAGES_DIR = os.path.join("uploads", "assets")
+if not os.path.exists(ASSETS_IMAGES_DIR):
+    os.makedirs(ASSETS_IMAGES_DIR)
 
 @router.get("", response_model=List[Asset])
 async def list_assets(
-    category: Optional[str] = None,
-    status: Optional[str] = None,
-    criticality: Optional[str] = None,
     location: Optional[str] = None,
-    limit: Optional[int] = Query(100, le=1000),
-    skip: Optional[int] = 0
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    limit: Optional[int] = 100,
 ):
     db = await get_database()
     
     # Build filter
     filter_dict = {}
-    if category:
-        filter_dict["category"] = category
-    if status:
-        filter_dict["status"] = status
-    if criticality:
-        filter_dict["criticality"] = criticality
     if location:
         filter_dict["location"] = location
+    if status:
+        filter_dict["status"] = status
+    if category:
+        filter_dict["category"] = category
     
     # Query database
-    cursor = db.assets.find(filter_dict).skip(skip).limit(limit).sort("createdAt", -1)
+    cursor = db.assets.find(filter_dict).limit(limit)
     assets = await cursor.to_list(length=limit)
     
-    # Convert _id to string and format dates
+    # Convert ObjectId to string for JSON serialization
     for asset in assets:
         asset["_id"] = str(asset["_id"])
-        # Convert date objects to strings if needed
-        date_fields = ["purchaseDate", "installDate", "warrantyExpiry", "lastMaintenance", "nextMaintenance"]
-        for field in date_fields:
-            if field in asset and isinstance(asset[field], date):
-                asset[field] = asset[field].isoformat()
     
     return assets
 
@@ -72,6 +52,8 @@ async def list_assets(
 async def get_asset(asset_id: str):
     db = await get_database()
     
+    # Validate ObjectId format
+    from bson import ObjectId
     if not ObjectId.is_valid(asset_id):
         raise HTTPException(status_code=400, detail="Invalid asset ID")
     
@@ -81,83 +63,139 @@ async def get_asset(asset_id: str):
         raise HTTPException(status_code=404, detail="Asset not found")
     
     asset["_id"] = str(asset["_id"])
-    # Convert date objects to strings if needed
-    date_fields = ["purchaseDate", "installDate", "warrantyExpiry", "lastMaintenance", "nextMaintenance"]
-    for field in date_fields:
-        if field in asset and isinstance(asset[field], date):
-            asset[field] = asset[field].isoformat()
-    
     return asset
 
 @router.post("", response_model=Asset)
-async def create_asset(
-    name: str = Form(...),
-    location: str = Form(...),
-    assetNumber: Optional[str] = Form(None),
-    category: Optional[str] = Form(None),
-    manufacturer: Optional[str] = Form(None),
-    model: Optional[str] = Form(None),
-    serialNumber: Optional[str] = Form(None),
-    purchaseDate: Optional[date] = Form(None),
-    installDate: Optional[date] = Form(None),
-    warrantyExpiry: Optional[date] = Form(None),
-    criticality: Optional[str] = Form(None),
-    specifications: Optional[str] = Form(None),  # JSON string
-    image: UploadFile = File(None)
-):
+async def create_asset(request: Request):
     try:
+        # Check content type to determine how to parse the request
+        content_type = request.headers.get('content-type', '').lower()
+        logger.info(f"Content-Type: {content_type}")
+        
+        # Initialize variables
+        name = None
+        location = None
+        asset_number = None
+        category = None
+        manufacturer = None
+        model = None
+        serial_number = None
+        purchase_date = None
+        install_date = None
+        warranty_expiry = None
+        criticality = None
+        specs = {}
+        image_file = None
+        
+        # Parse request data based on content type
+        if 'multipart/form-data' in content_type:
+            # Handle form data (with possible file upload)
+            logger.info("Processing form data request")
+            form_data = await request.form()
+            
+            # Extract all fields from form data
+            name = form_data.get("name")
+            location = form_data.get("location")
+            asset_number = form_data.get("assetNumber")
+            category = form_data.get("category")
+            manufacturer = form_data.get("manufacturer")
+            model = form_data.get("model")
+            serial_number = form_data.get("serialNumber")
+            purchase_date = form_data.get("purchaseDate")
+            install_date = form_data.get("installDate")
+            warranty_expiry = form_data.get("warrantyExpiry")
+            criticality = form_data.get("criticality")
+            specifications_str = form_data.get("specifications")
+            image_file = form_data.get("image")
+            
+            # Parse dates
+            if purchase_date and isinstance(purchase_date, str):
+                try:
+                    purchase_date = date.fromisoformat(purchase_date)
+                except ValueError:
+                    purchase_date = None
+                    
+            if install_date and isinstance(install_date, str):
+                try:
+                    install_date = date.fromisoformat(install_date)
+                except ValueError:
+                    install_date = None
+                    
+            if warranty_expiry and isinstance(warranty_expiry, str):
+                try:
+                    warranty_expiry = date.fromisoformat(warranty_expiry)
+                except ValueError:
+                    warranty_expiry = None
+            
+            # Parse specifications if provided
+            if specifications_str:
+                try:
+                    specs = json.loads(specifications_str)
+                except (json.JSONDecodeError, TypeError):
+                    logger.warning("Invalid specifications format in form data")
+        else:
+            # Handle JSON data
+            logger.info("Processing JSON request")
+            body = await request.json()
+            
+            # Extract fields from JSON
+            name = body.get("name")
+            location = body.get("location")
+            asset_number = body.get("assetNumber")
+            category = body.get("category")
+            manufacturer = body.get("manufacturer")
+            model = body.get("model")
+            serial_number = body.get("serialNumber")
+            purchase_date = body.get("purchaseDate")
+            install_date = body.get("installDate")
+            warranty_expiry = body.get("warrantyExpiry")
+            criticality = body.get("criticality")
+            specs = body.get("specifications", {})
+        
+        # Validate required fields
+        if not name or not location:
+            raise HTTPException(status_code=400, detail="Name and location are required")
+        
         logger.info(f"Creating asset with name: {name}, location: {location}")
         db = await get_database()
-        
-        # Parse specifications if provided
-        specs = {}
-        if specifications:
-            try:
-                specs = json.loads(specifications)
-                logger.info(f"Parsed specifications: {specs}")
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid specifications format: {e}")
-                raise HTTPException(status_code=400, detail="Invalid specifications format")
         
         # Create asset document with default values for required fields
         asset_dict = {
             "name": name,
             "location": location,
-            "assetNumber": assetNumber,
+            "assetNumber": asset_number,
             "category": category or "",
             "manufacturer": manufacturer or "",
             "model": model or "",
-            "serialNumber": serialNumber or "",
-            "purchaseDate": purchaseDate,
-            "installDate": installDate,
-            "warrantyExpiry": warrantyExpiry,
+            "serialNumber": serial_number or "",
+            "purchaseDate": purchase_date,
+            "installDate": install_date,
+            "warrantyExpiry": warranty_expiry,
             "criticality": criticality or "medium",
-            "specifications": specs
+            "specifications": specs or {}
         }
         
         logger.info(f"Asset dict before image handling: {asset_dict}")
         
-        # Handle image upload
+        # Handle image upload (only for form data requests)
         image_url = None
-        logger.info(f"Image object: {image}")
-        logger.info(f"Image filename: {getattr(image, 'filename', 'No filename') if image else 'No image'}")
-        if image and image.filename:
+        if image_file and hasattr(image_file, 'filename') and image_file.filename:
             try:
-                logger.info(f"Processing image: {image.filename}")
+                logger.info(f"Processing image: {image_file.filename}")
                 # Generate unique filename
-                file_extension = os.path.splitext(image.filename)[1]
+                file_extension = os.path.splitext(image_file.filename)[1]
                 unique_filename = f"{uuid.uuid4()}{file_extension}"
-                file_path = UPLOAD_DIR / unique_filename
+                file_path = os.path.join(ASSETS_IMAGES_DIR, unique_filename)
                 logger.info(f"Saving image to: {file_path}")
                 
                 # Save the file
-                content = await image.read()
+                content = await image_file.read()
                 logger.info(f"Image content length: {len(content)}")
                 with open(file_path, "wb") as buffer:
                     buffer.write(content)
                 
-                # Store the image URL
-                image_url = f"/api/assets/image/{unique_filename}"
+                # Store the image URL (relative path for static file serving)
+                image_url = f"/uploads/assets/{unique_filename}"
                 asset_dict["imageUrl"] = image_url
                 logger.info(f"Image saved successfully: {image_url}")
             except Exception as e:
@@ -166,7 +204,7 @@ async def create_asset(
                 pass
         else:
             logger.info("No image to process")
-
+        
         # Set default dates if not provided (convert to datetime for MongoDB)
         today = datetime.utcnow().date()
         asset_dict["purchaseDate"] = asset_dict.get("purchaseDate") or today
@@ -188,7 +226,7 @@ async def create_asset(
         asset_dict["specifications"] = asset_dict.get("specifications") or {}
         
         # Use provided asset number or generate a unique one
-        if "assetNumber" in asset_dict and asset_dict["assetNumber"] and str(asset_dict["assetNumber"]).strip():
+        if asset_dict.get("assetNumber") and str(asset_dict["assetNumber"]).strip():
             # Check if the provided asset number is already in use
             existing_asset = await db.assets.find_one({"assetNumber": str(asset_dict["assetNumber"]).strip()})
             if existing_asset:
@@ -210,9 +248,6 @@ async def create_asset(
         result = await db.assets.insert_one(asset_dict)
         asset_dict["_id"] = str(result.inserted_id)
         
-        # Update location asset count
-        await update_location_asset_count(db, asset_dict.get("location"))
-        
         # Convert date objects to strings for response
         date_fields = ["purchaseDate", "installDate", "warrantyExpiry", "lastMaintenance", "nextMaintenance"]
         for field in date_fields:
@@ -222,6 +257,9 @@ async def create_asset(
         
         logger.info(f"Asset created successfully with ID: {asset_dict['_id']}")
         return asset_dict
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error creating asset: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
@@ -230,30 +268,22 @@ async def create_asset(
 async def update_asset(asset_id: str, asset: AssetUpdate):
     db = await get_database()
     
+    # Validate ObjectId format
+    from bson import ObjectId
     if not ObjectId.is_valid(asset_id):
         raise HTTPException(status_code=400, detail="Invalid asset ID")
-    
-    # Get the existing asset to check location changes
-    existing_asset = await db.assets.find_one({"_id": ObjectId(asset_id)})
-    if not existing_asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
     
     # Build update dict (exclude None values)
     update_dict = {k: v for k, v in asset.dict().items() if v is not None}
     
-    # Handle assetNumber update with uniqueness check
-    if "assetNumber" in update_dict and update_dict["assetNumber"]:
-        # Check if the provided asset number is already in use by another asset
-        existing_asset_check = await db.assets.find_one({
-            "assetNumber": update_dict["assetNumber"],
-            "_id": {"$ne": ObjectId(asset_id)}
-        })
-        if existing_asset_check:
-            raise HTTPException(status_code=400, detail="Asset number already exists")
-        update_dict["assetNumber"] = update_dict["assetNumber"].strip()
-    
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")
+    
+    # Handle date conversion for update
+    date_fields = ["purchaseDate", "installDate", "warrantyExpiry", "lastMaintenance", "nextMaintenance"]
+    for field in date_fields:
+        if field in update_dict and isinstance(update_dict[field], date) and not isinstance(update_dict[field], datetime):
+            update_dict[field] = datetime.combine(update_dict[field], datetime.min.time())
     
     update_dict = add_timestamps(update_dict, is_update=True)
     
@@ -267,92 +297,60 @@ async def update_asset(asset_id: str, asset: AssetUpdate):
     if not result:
         raise HTTPException(status_code=404, detail="Asset not found")
     
-    # Update location asset counts if location changed
-    old_location = existing_asset.get("location")
-    new_location = result.get("location")
-    if old_location != new_location:
-        # Update both old and new location counts
-        await update_location_asset_count(db, old_location)
-        await update_location_asset_count(db, new_location)
-    elif "location" in update_dict:
-        # Location was updated, update the count
-        await update_location_asset_count(db, new_location)
-    
     result["_id"] = str(result["_id"])
-    # Convert date objects to strings
-    date_fields = ["purchaseDate", "installDate", "warrantyExpiry", "lastMaintenance", "nextMaintenance"]
-    for field in date_fields:
-        if field in result and isinstance(result[field], date):
-            result[field] = result[field].isoformat()
-    
     return result
 
 @router.delete("/{asset_id}")
 async def delete_asset(asset_id: str):
     db = await get_database()
     
+    # Validate ObjectId format
+    from bson import ObjectId
     if not ObjectId.is_valid(asset_id):
         raise HTTPException(status_code=400, detail="Invalid asset ID")
-    
-    # Get the asset to check location
-    asset = await db.assets.find_one({"_id": ObjectId(asset_id)})
-    if not asset:
-        raise HTTPException(status_code=404, detail="Asset not found")
     
     result = await db.assets.delete_one({"_id": ObjectId(asset_id)})
     
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Asset not found")
     
-    # Update location asset count
-    await update_location_asset_count(db, asset.get("location"))
-    
     return {"message": "Asset deleted successfully"}
 
-@router.get("/image/{image_filename}")
-async def get_asset_image(image_filename: str):
-    image_path = os.path.join("uploaded_assets", image_filename)
-    if os.path.exists(image_path):
-        return FileResponse(image_path)
-    else:
-        raise HTTPException(status_code=404, detail="Image not found")
-
-@router.get("/{asset_id}/history")
-async def get_asset_history(asset_id: str):
+# Image upload endpoint for existing assets
+@router.post("/{asset_id}/image")
+async def upload_asset_image(asset_id: str, file: UploadFile = File(...)):
     db = await get_database()
     
+    # Validate ObjectId format
+    from bson import ObjectId
     if not ObjectId.is_valid(asset_id):
         raise HTTPException(status_code=400, detail="Invalid asset ID")
     
-    # Get work orders related to this asset
-    work_orders = await db.work_orders.find({"assetId": asset_id}).to_list(length=100)
+    # Check if asset exists
+    asset = await db.assets.find_one({"_id": ObjectId(asset_id)})
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
     
-    # Get preventive maintenance records
-    pm_records = await db.preventive_maintenance.find({"assetId": asset_id}).to_list(length=100)
+    # Save file to disk with correct extension
+    file_extension = os.path.splitext(file.filename)[1].lower()
+    # Ensure we have a valid extension
+    if not file_extension:
+        file_extension = ".jpg"  # default to jpg
     
-    # Get service requests related to this asset
-    service_requests = await db.service_requests.find({"relatedAsset": asset_id}).to_list(length=100)
+    file_name = f"{asset_id}_{uuid.uuid4()}{file_extension}"
+    file_path = os.path.join(ASSETS_IMAGES_DIR, file_name)
     
-    # Format the history data
-    history = {
-        "workOrders": [],
-        "preventiveMaintenance": [],
-        "serviceRequests": []
-    }
+    with open(file_path, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
     
-    # Process work orders
-    for wo in work_orders:
-        wo["_id"] = str(wo["_id"])
-        history["workOrders"].append(wo)
+    # Update asset with image URL (relative path for static file serving)
+    image_url = f"/uploads/assets/{file_name}"
+    result = await db.assets.find_one_and_update(
+        {"_id": ObjectId(asset_id)},
+        {"$set": {"imageUrl": image_url, "updatedAt": datetime.utcnow()}},
+        return_document=True
+    )
     
-    # Process preventive maintenance
-    for pm in pm_records:
-        pm["_id"] = str(pm["_id"])
-        history["preventiveMaintenance"].append(pm)
-    
-    # Process service requests
-    for sr in service_requests:
-        sr["_id"] = str(sr["_id"])
-        history["serviceRequests"].append(sr)
-    
-    return history
+    result["_id"] = str(result["_id"])
+    return {"imageUrl": image_url, "asset": result}

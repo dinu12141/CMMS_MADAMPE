@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,6 +18,7 @@ from routes.inventory import router as inventory_router
 from routes.service_requests import router as service_requests_router
 from routes.locations import router as locations_router
 from routes.documents import router as documents_router
+from routes.auth import router as auth_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -26,8 +28,16 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# Ensure uploads directory exists
+UPLOADS_DIR = "uploads"
+if not os.path.exists(UPLOADS_DIR):
+    os.makedirs(UPLOADS_DIR)
+
 # Create the main app without a prefix
 app = FastAPI()
+
+# Mount the uploads directory to serve files
+app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -83,6 +93,7 @@ app.include_router(inventory_router, prefix="/api")
 app.include_router(service_requests_router, prefix="/api")
 app.include_router(locations_router, prefix="/api")
 app.include_router(documents_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

@@ -54,6 +54,7 @@ const apiCall = async (url, options = {}) => {
 // Work Orders API
 const workOrdersApi = {
   getAll: () => apiCall('http://localhost:8000/api/work-orders'),
+  getByAssetId: (assetId) => apiCall(`http://localhost:8000/api/work-orders?assetId=${assetId}`),
   getById: (id) => apiCall(`http://localhost:8000/api/work-orders/${id}`),
   create: (data) => apiCall('http://localhost:8000/api/work-orders', {
     method: 'POST',
@@ -182,4 +183,81 @@ const inventoryApi = {
   },
 };
 
-export { workOrdersApi, assetsApi, inventoryApi, serviceRequestsApi, locationsApi };
+// Documents API
+const documentsApi = {
+  getAll: async (filters = {}) => {
+    try {
+      const queryParams = new URLSearchParams(filters).toString();
+      const url = queryParams 
+        ? `http://localhost:8000/api/documents?${queryParams}`
+        : 'http://localhost:8000/api/documents';
+      return await apiCall(url);
+    } catch (error) {
+      console.error('Documents API error:', error);
+      throw error;
+    }
+  },
+  getById: async (id) => {
+    try {
+      return await apiCall(`http://localhost:8000/api/documents/${id}`);
+    } catch (error) {
+      console.error('Documents API error:', error);
+      throw error;
+    }
+  },
+  upload: async (formData) => {
+    try {
+      const response = await fetch('http://localhost:8000/api/documents', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+          detail: `Server returned ${response.status} ${response.statusText}`
+        }));
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Documents API error:', error);
+      throw error;
+    }
+  },
+  download: async (id) => {
+    try {
+      const response = await fetch(`http://localhost:8000/api/documents/${id}/download`);
+      if (!response.ok) {
+        throw new Error(`Failed to download document: ${response.status} ${response.statusText}`);
+      }
+      return response;
+    } catch (error) {
+      console.error('Documents API error:', error);
+      throw error;
+    }
+  },
+  update: async (id, data) => {
+    try {
+      return await apiCall(`http://localhost:8000/api/documents/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    } catch (error) {
+      console.error('Documents API error:', error);
+      throw error;
+    }
+  },
+  delete: async (id) => {
+    try {
+      return await apiCall(`http://localhost:8000/api/documents/${id}`, {
+        method: 'DELETE',
+      });
+    } catch (error) {
+      console.error('Documents API error:', error);
+      throw error;
+    }
+  },
+};
+
+export { workOrdersApi, assetsApi, inventoryApi, serviceRequestsApi, locationsApi, documentsApi };

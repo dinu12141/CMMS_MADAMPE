@@ -346,24 +346,36 @@ class Location(BaseModel):
 
 # User Models
 class UserCreate(BaseModel):
-    name: str
+    username: str
     email: str
+    password: str
     role: str
     department: str
     phone: str
 
 class UserUpdate(BaseModel):
-    name: Optional[str] = None
+    username: Optional[str] = None
     email: Optional[str] = None
     role: Optional[str] = None
     department: Optional[str] = None
     phone: Optional[str] = None
     active: Optional[bool] = None
 
+class UserInDB(BaseModel):
+    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    username: str
+    email: str
+    hashed_password: str
+    role: str
+    department: str
+    phone: str
+    active: bool = True
+    createdAt: datetime
+    updatedAt: datetime
+
 class User(BaseModel):
     id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    userId: str
-    name: str
+    username: str
     email: str
     role: str
     department: str

@@ -1,14 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, Menu, X, Package, ClipboardList, MapPin } from 'lucide-react';
+import { Bell, Search, Menu, X, Package, ClipboardList, MapPin, User, LogOut } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import NotificationDropdown from './NotificationDropdown';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Header = ({ title, subtitle, showSearch = true, showNotifications = true }) => {
   const searchRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   // Handle clicks outside the search box to close results
   useEffect(() => {
@@ -112,6 +121,24 @@ const Header = ({ title, subtitle, showSearch = true, showNotifications = true }
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* User Info and Logout */}
+          {user && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-slate-900">{user.username}</p>
+                  <p className="text-xs text-slate-500">{user.role}</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           )}
 

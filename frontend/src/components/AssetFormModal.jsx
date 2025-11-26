@@ -138,6 +138,12 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing, locations
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validate required fields
+    if (!formData.name || !formData.location) {
+      alert('Please fill in all required fields (Asset Name and Location)');
+      return;
+    }
+    
     // Convert spec fields array back to object
     const specifications = {};
     specFields.forEach(field => {

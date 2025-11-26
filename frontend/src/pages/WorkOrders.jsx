@@ -19,6 +19,7 @@ import { useNotification } from '../hooks/useNotification';
 import ProgressUpdateModal from '../components/ProgressUpdateModal';
 import WorkOrderModal from '../components/WorkOrderModal';
 import WorkOrderDetailModal from '../components/WorkOrderDetailModal';
+import { workOrders as mockWorkOrders } from '../mockData';
 
 const WorkOrders = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -29,6 +30,8 @@ const WorkOrders = () => {
   const [workOrdersData, setWorkOrdersData] = useState([]);
   const [filteredWorkOrders, setFilteredWorkOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [usingMockData, setUsingMockData] = useState(false);
   const [showWorkOrderModal, setShowWorkOrderModal] = useState(false);
   const [currentWorkOrder, setCurrentWorkOrder] = useState(null);
   const [modalMode, setModalMode] = useState('create');
@@ -53,12 +56,17 @@ const WorkOrders = () => {
       setLoading(true);
       const data = await workOrdersApi.getAll();
       setWorkOrdersData(data);
+      setUsingMockData(false);
       
       // Show a notification when work orders are loaded
       showSuccess('Work Orders Loaded', `Successfully loaded ${data.length} work orders`);
     } catch (err) {
-      console.error('Failed to load work orders', err);
-      showError('Load Error', 'Failed to load work orders. Please try again.');
+      console.error('Error fetching work orders from backend:', err);
+      // Fallback to mock data
+      setWorkOrdersData(mockWorkOrders);
+      setUsingMockData(true);
+      setError('Using mock data - backend unavailable');
+      showError('Load Error', 'Failed to load work orders. Using mock data instead.');
     } finally {
       setLoading(false);
     }
@@ -198,21 +206,11 @@ const WorkOrders = () => {
             } 
           : wo
       );
-      
       setWorkOrdersData(updatedWorkOrders);
-      
-      // Show success notification with the actual progress percentage
-      const progressPercentage = updatedWorkOrder.actualTime && updatedWorkOrder.estimatedTime 
-        ? Math.round((updatedWorkOrder.actualTime / updatedWorkOrder.estimatedTime) * 100)
-        : 0;
-      
-      showSuccess('Progress Updated', `Work order ${updatedWorkOrder.workOrderNumber || updatedWorkOrder.id} progress updated to ${progressPercentage}%`);
-      
-      // Close the modal
       setIsProgressModalOpen(false);
-      setSelectedWorkOrder(null);
-    } catch (error) {
-      console.error('Failed to update work order progress:', error);
+      showSuccess('Progress Updated', 'Work order progress has been successfully updated');
+    } catch (err) {
+      console.error('Failed to update work order progress', err);
       showError('Update Error', 'Failed to update work order progress. Please try again.');
     }
   };
@@ -228,84 +226,114 @@ const WorkOrders = () => {
     );
   }
 
+  if (error && !usingMockData) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+          <p className="mt-2 text-red-500">{error}</p>
+          <Button className="mt-4" onClick={loadWorkOrders}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Header 
         title="Work Orders" 
-        subtitle="Manage and track all maintenance work orders"
+        subtitle={usingMockData 
+          ? "Using mock data - backend unavailable" 
+          : "Manage and track all maintenance work orders"
+        }
       />
       
-      <div className="p-8">
+      <div className="p-4">
         {/* Actions Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-            <Input
-              type="text"
-              placeholder="Search work orders..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-80"
-            />
-            <Button variant="outline">
-              <Filter className="w-4 h-4 mr-2" />
-              Advanced Filters
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div className="flex gap-2">
+            <div className="relative">
+              <Wrench className="absolute left-2 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Input
+                type="text"
+                placeholder="Search work orders..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 w-full sm:w-64"
+              />
+            </div>
+            <Button variant="outline" className="flex items-center gap-2">
+              <Filter className="w-4 h-4" />
+              Filters
             </Button>
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto" onClick={handleCreateWorkOrder}>
+          <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateWorkOrder}>
             <Plus className="w-4 h-4 mr-2" />
             Create Work Order
           </Button>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {priorities.map(priority => (
-              <option key={priority} value={priority}>
-                {priority === 'all' ? 'All Priorities' : priority.charAt(0).toUpperCase() + priority.slice(1)}
-              </option>
-            ))}
-          </select>
+        {/* Filter Options */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">Priority</label>
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {priorities.map(priority => (
+                <option key={priority} value={priority}>
+                  {priority === 'all' ? 'All Priorities' : priority.charAt(0).toUpperCase() + priority.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
           
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {statuses.map(status => (
-              <option key={status} value={status}>
-                {status === 'all' ? 'All Statuses' : status.charAt(0).toUpperCase() + status.slice(1)}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {statuses.map(status => (
+                <option key={status} value={status}>
+                  {status === 'all' ? 'All Statuses' : status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
+                </option>
+              ))}
+            </select>
+          </div>
           
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {types.map(type => (
-              <option key={type} value={type}>
-                {type === 'all' ? 'All Types' : type.charAt(0).toUpperCase() + type.slice(1)}
-              </option>
-            ))}
-          </select>
+          <div>
+            <label className="text-sm font-medium text-slate-700 mb-1 block">Type</label>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {types.map(type => (
+                <option key={type} value={type}>
+                  {type === 'all' ? 'All Types' : type.charAt(0).toUpperCase() + type.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
           
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setPriorityFilter('all');
-              setStatusFilter('all');
-              setTypeFilter('all');
-              setSearchTerm('');
-            }}
-          >
-            Clear Filters
-          </Button>
+          <div className="flex items-end">
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => {
+                setPriorityFilter('all');
+                setStatusFilter('all');
+                setTypeFilter('all');
+                setSearchTerm('');
+              }}
+            >
+              Clear Filters
+            </Button>
+          </div>
         </div>
 
         {/* Results Summary */}
@@ -315,94 +343,59 @@ const WorkOrders = () => {
           </p>
         </div>
 
-        {/* Work Orders Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredWorkOrders.map((wo) => (
-            <Card key={wo.id} className="hover:shadow-lg transition-all duration-200">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Wrench className="w-6 h-6 text-blue-600" />
+        {/* Work Orders List */}
+        <div className="space-y-4">
+          {filteredWorkOrders.map((workOrder) => (
+            <Card key={workOrder.id || workOrder._id} className="hover:shadow-md transition-all duration-200">
+              <CardContent className="p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-mono text-sm font-medium text-slate-900">{workOrder.id}</span>
+                      <Badge className={getPriorityColor(workOrder.priority)}>
+                        {workOrder.priority}
+                      </Badge>
+                      <Badge className={getStatusColor(workOrder.status)}>
+                        {workOrder.status}
+                      </Badge>
+                      <Badge className={getTypeColor(workOrder.type)}>
+                        {workOrder.type}
+                      </Badge>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="text-lg font-bold text-slate-900">{wo.title}</h3>
-                        <Badge className={getPriorityColor(wo.priority)}>
-                          {wo.priority}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-slate-600 mb-1">{wo.description}</p>
-                      <p className="text-xs text-slate-500 font-mono">{wo.id}</p>
+                    <h3 className="text-lg font-semibold text-slate-900">{workOrder.title}</h3>
+                    <p className="text-sm text-slate-600">{workOrder.description}</p>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <div className="flex items-center gap-1 text-sm text-slate-600 mb-1">
+                      <User className="w-4 h-4" />
+                      <span>{workOrder.assignedTo || 'Unassigned'}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-sm text-slate-600">
+                      <Calendar className="w-4 h-4" />
+                      <span>Due: {workOrder.dueDate ? new Date(workOrder.dueDate).toLocaleDateString() : 'N/A'}</span>
                     </div>
                   </div>
-                  <Badge className={getStatusColor(wo.status)}>
-                    {wo.status}
-                  </Badge>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-200">
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Asset</p>
-                    <p className="text-sm font-medium text-slate-900">{wo.assetName}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Type</p>
-                    <Badge variant="secondary" className={getTypeColor(wo.type)}>
-                      {wo.type}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Assigned To</p>
-                    <p className="text-sm font-medium text-slate-900 flex items-center">
-                      <User className="w-4 h-4 mr-1 text-slate-400" />
-                      {wo.assignedTo}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Due Date</p>
-                    <p className="text-sm font-medium text-slate-900 flex items-center">
-                      <Calendar className="w-4 h-4 mr-1 text-slate-400" />
-                      {new Date(wo.dueDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="text-center p-3 bg-slate-50 rounded-lg">
-                    <Clock className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                    <p className="text-xs text-slate-500 mb-1">Est. Time</p>
-                    <p className="text-sm font-bold text-slate-900">{wo.estimatedTime}h</p>
-                  </div>
-                  <div className="text-center p-3 bg-slate-50 rounded-lg">
-                    <AlertCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                    <p className="text-xs text-slate-500 mb-1">Cost</p>
-                    <p className="text-sm font-bold text-slate-900">LKR {wo.cost.toLocaleString()}</p>
-                  </div>
-                  <div className="text-center p-3 bg-slate-50 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-slate-400 mx-auto mb-1" />
-                    <p className="text-xs text-slate-500 mb-1">Progress</p>
-                    <p className="text-lg font-bold text-slate-900">
-                      {wo.actualTime && wo.estimatedTime 
-                        ? `${Math.round((wo.actualTime / wo.estimatedTime) * 100)}%` 
-                        : '0%'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
+                
+                <div className="flex flex-wrap gap-2">
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="flex-1"
-                    onClick={() => handleViewDetails(wo)}
+                    onClick={() => handleViewDetails(workOrder)}
                   >
                     View Details
                   </Button>
                   <Button 
                     size="sm" 
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                    onClick={() => handleUpdateProgress(wo)}
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={() => handleEditWorkOrder(workOrder)}
+                  >
+                    Edit
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => handleUpdateProgress(workOrder)}
                   >
                     Update Progress
                   </Button>
@@ -413,12 +406,12 @@ const WorkOrders = () => {
         </div>
 
         {filteredWorkOrders.length === 0 && (
-          <div className="text-center py-12">
-            <Wrench className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <div className="text-center py-8">
+            <Wrench className="w-12 h-12 text-slate-300 mx-auto mb-2" />
             <p className="text-slate-500">No work orders found matching your criteria.</p>
             <Button 
               variant="outline" 
-              className="mt-4"
+              className="mt-3"
               onClick={() => {
                 setPriorityFilter('all');
                 setStatusFilter('all');
@@ -431,29 +424,30 @@ const WorkOrders = () => {
           </div>
         )}
       </div>
-      
-      <ProgressUpdateModal
-        isOpen={isProgressModalOpen}
-        onClose={() => {
-          setIsProgressModalOpen(false);
-          setSelectedWorkOrder(null);
-        }}
-        workOrder={selectedWorkOrder}
-        onSubmit={handleProgressSubmit}
-      />
-      
+
+      {/* Work Order Modal */}
       <WorkOrderModal
-        isOpen={showWorkOrderModal && (modalMode === 'create' || modalMode === 'edit')}
+        isOpen={showWorkOrderModal}
         onClose={handleCloseWorkOrderModal}
-        onSubmit={handleSaveWorkOrder}
+        onSave={handleSaveWorkOrder}
         workOrder={currentWorkOrder}
         mode={modalMode}
       />
-      
+
+      {/* Progress Update Modal */}
+      <ProgressUpdateModal
+        isOpen={isProgressModalOpen}
+        onClose={() => setIsProgressModalOpen(false)}
+        onSubmit={handleProgressSubmit}
+        workOrder={selectedWorkOrder}
+      />
+
+      {/* Work Order Detail Modal */}
       <WorkOrderDetailModal
-        isOpen={showWorkOrderModal && modalMode === 'view'}
+        isOpen={modalMode === 'view' && showWorkOrderModal}
         onClose={handleCloseWorkOrderModal}
         workOrder={currentWorkOrder}
+        onEdit={handleEditWorkOrder}
       />
     </div>
   );

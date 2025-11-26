@@ -16,6 +16,7 @@ import {
 import { serviceRequestsApi } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
 import ServiceRequestModal from '../components/ServiceRequestModal';
+import PermissionButton from '../components/PermissionButton';
 
 const ServiceRequests = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -212,10 +213,14 @@ const ServiceRequests = () => {
               className="w-80"
             />
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateRequest}>
+          <PermissionButton 
+            page="service-requests"
+            className="bg-blue-600 hover:bg-blue-700" 
+            onClick={handleCreateRequest}
+          >
             <Plus className="w-4 h-4 mr-2" />
             New Request
-          </Button>
+          </PermissionButton>
         </div>
 
         {/* Status Filter */}
@@ -314,21 +319,21 @@ const ServiceRequests = () => {
                   <div className="flex gap-2">
                     {request.status === 'open' && (
                       <>
-                        <Button variant="outline" size="sm" onClick={() => handleAssignRequest(request.id)}>Assign</Button>
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleConvertToWO(request)}>Convert to WO</Button>
+                        <PermissionButton page="service-requests" variant="outline" size="sm" onClick={() => handleAssignRequest(request.id)}>Assign</PermissionButton>
+                        <PermissionButton page="service-requests" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleConvertToWO(request)}>Convert to WO</PermissionButton>
                       </>
                     )}
                     {request.status === 'assigned' && (
                       <>
-                        <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleConvertToWO(request)}>Convert to WO</Button>
-                        <Button variant="outline" size="sm">
+                        <PermissionButton page="service-requests" size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleConvertToWO(request)}>Convert to WO</PermissionButton>
+                        <PermissionButton page="service-requests" variant="outline" size="sm">
                           <XCircle className="w-4 h-4 mr-1" />
                           Close
-                        </Button>
+                        </PermissionButton>
                       </>
                     )}
                     {request.status === 'converted' && (
-                      <Button variant="outline" size="sm">View Work Order</Button>
+                      <PermissionButton page="service-requests" variant="outline" size="sm">View Work Order</PermissionButton>
                     )}
                   </div>
                 </div>
