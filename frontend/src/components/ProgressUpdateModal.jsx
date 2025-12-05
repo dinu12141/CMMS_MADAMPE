@@ -131,7 +131,7 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
         };
         
         // Make API call to update work order
-        const updatedWorkOrder = await workOrdersApi.update(workOrder.id || workOrder._id, submitData);
+        const updatedWorkOrder = await workOrdersApi.updateProgress(workOrder.id || workOrder._id, submitData);
         
         // Call onSubmit with the updated work order data
         onSubmit(updatedWorkOrder);
@@ -157,7 +157,7 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
           status: 'cancelled'
         };
         
-        const updatedWorkOrder = await workOrdersApi.update(workOrder.id || workOrder._id, submitData);
+        const updatedWorkOrder = await workOrdersApi.updateProgress(workOrder.id || workOrder._id, submitData);
         
         // Call onSubmit with the updated work order data
         onSubmit(updatedWorkOrder);
@@ -183,7 +183,7 @@ const ProgressUpdateModal = ({ isOpen, onClose, workOrder, onSubmit }) => {
           status: 'on-hold'
         };
         
-        const updatedWorkOrder = await workOrdersApi.update(workOrder.id || workOrder._id, submitData);
+        const updatedWorkOrder = await workOrdersApi.updateProgress(workOrder.id || workOrder._id, submitData);
         
         // Call onSubmit with the updated work order data
         onSubmit(updatedWorkOrder);

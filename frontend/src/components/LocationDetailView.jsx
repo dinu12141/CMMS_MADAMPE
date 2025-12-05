@@ -32,12 +32,14 @@ const LocationDetailView = ({ isOpen, onClose, location, onEdit, onLocationUpdat
         };
         reader.readAsDataURL(file);
         
-        // Upload to backend
+        // Upload to backend using the API service
         const response = await locationsApi.uploadImage(location.id, file);
         
         // Update parent component with new data
         if (onLocationUpdated) {
-          onLocationUpdated(response.location);
+          // Fetch the updated location data
+          const updatedLocation = await locationsApi.getById(location.id);
+          onLocationUpdated(updatedLocation);
         }
       } catch (error) {
         console.error('Image upload failed:', error);
@@ -194,9 +196,9 @@ const LocationDetailView = ({ isOpen, onClose, location, onEdit, onLocationUpdat
                           alt="Location preview" 
                           className="w-full h-full object-cover rounded-lg"
                         />
-                      ) : location?.image ? (
+                      ) : location?.imageUrl ? (
                         <img 
-                          src={`http://localhost:8000${location.image}`} 
+                          src={`http://localhost:8000${location.imageUrl}`} 
                           alt="Location" 
                           className="w-full h-full object-cover rounded-lg"
                         />

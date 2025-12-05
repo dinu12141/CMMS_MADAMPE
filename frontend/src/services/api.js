@@ -12,32 +12,32 @@ const apiCall = async (url, options = {}) => {
     // Add timeout to prevent hanging
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
+
     const response = await fetch(url, {
       headers: {
         // Only set Content-Type for JSON requests, let browser set it for FormData
-        ...(!options.body || !(options.body instanceof FormData) ? {'Content-Type': 'application/json'} : {}),
+        ...(!options.body || !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...options.headers,
       },
       signal: controller.signal,
       ...options,
     });
-    
+
     clearTimeout(timeoutId);
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({
         detail: `Server returned ${response.status} ${response.statusText}`
       }));
       throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-    
+
     // Handle empty responses
     const text = await response.text();
     if (!text) {
       return {};
     }
-    
+
     try {
       return JSON.parse(text);
     } catch (parseError) {
@@ -64,6 +64,10 @@ const workOrdersApi = {
     method: 'PUT',
     body: JSON.stringify(data),
   }),
+  updateProgress: (id, data) => apiCall(`http://localhost:8000/api/work-orders/${id}/progress`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
   delete: (id) => apiCall(`http://localhost:8000/api/work-orders/${id}`, {
     method: 'DELETE',
   }),
@@ -84,6 +88,21 @@ const serviceRequestsApi = {
   delete: (id) => apiCall(`http://localhost:8000/api/service-requests/${id}`, {
     method: 'DELETE',
   }),
+  uploadFile: async (id, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`http://localhost:8000/api/service-requests/${id}/upload-file`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: `Server returned ${response.status} ${response.statusText}` }));
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  },
 };
 
 // Locations API
@@ -92,22 +111,30 @@ const locationsApi = {
   getById: (id) => apiCall(`http://localhost:8000/api/locations/${id}`),
   create: (data) => apiCall('http://localhost:8000/api/locations', {
     method: 'POST',
-    body: data instanceof FormData ? data : JSON.stringify(data),
+    body: JSON.stringify(data),
   }),
   update: (id, data) => apiCall(`http://localhost:8000/api/locations/${id}`, {
     method: 'PUT',
-    body: data instanceof FormData ? data : JSON.stringify(data),
+    body: JSON.stringify(data),
   }),
   delete: (id) => apiCall(`http://localhost:8000/api/locations/${id}`, {
     method: 'DELETE',
   }),
+  uploadImage: (id, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiCall(`http://localhost:8000/api/locations/${id}/upload-image`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
 };
 
 // Assets API
 const assetsApi = {
   getAll: (filters = {}) => {
     const queryParams = new URLSearchParams(filters).toString();
-    const url = queryParams 
+    const url = queryParams
       ? `http://localhost:8000/api/assets?${queryParams}`
       : 'http://localhost:8000/api/assets';
     return apiCall(url);
@@ -115,16 +142,24 @@ const assetsApi = {
   getById: (id) => apiCall(`http://localhost:8000/api/assets/${id}`),
   create: (data) => apiCall('http://localhost:8000/api/assets', {
     method: 'POST',
-    body: data instanceof FormData ? data : JSON.stringify(data),
+    body: JSON.stringify(data),
   }),
   update: (id, data) => apiCall(`http://localhost:8000/api/assets/${id}`, {
     method: 'PUT',
-    body: data instanceof FormData ? data : JSON.stringify(data),
+    body: JSON.stringify(data),
   }),
   delete: (id) => apiCall(`http://localhost:8000/api/assets/${id}`, {
     method: 'DELETE',
   }),
   getHistory: (id) => apiCall(`http://localhost:8000/api/assets/${id}/history`),
+  uploadImage: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiCall('http://localhost:8000/api/assets/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
 };
 
 // Inventory API
@@ -132,7 +167,7 @@ const inventoryApi = {
   getAll: async (filters = {}) => {
     try {
       const queryParams = new URLSearchParams(filters).toString();
-      const url = queryParams 
+      const url = queryParams
         ? `http://localhost:8000/api/inventory?${queryParams}`
         : 'http://localhost:8000/api/inventory';
       return await apiCall(url);
@@ -184,13 +219,15 @@ const inventoryApi = {
 };
 
 // Documents API
+const documentsBaseUrl = 'http://localhost:8000/api/documents/';
+
 const documentsApi = {
   getAll: async (filters = {}) => {
     try {
       const queryParams = new URLSearchParams(filters).toString();
-      const url = queryParams 
-        ? `http://localhost:8000/api/documents?${queryParams}`
-        : 'http://localhost:8000/api/documents';
+      const url = queryParams
+        ? `${documentsBaseUrl}?${queryParams}`
+        : documentsBaseUrl;
       return await apiCall(url);
     } catch (error) {
       console.error('Documents API error:', error);
@@ -199,7 +236,7 @@ const documentsApi = {
   },
   getById: async (id) => {
     try {
-      return await apiCall(`http://localhost:8000/api/documents/${id}`);
+      return await apiCall(`${documentsBaseUrl}${id}`);
     } catch (error) {
       console.error('Documents API error:', error);
       throw error;
@@ -207,18 +244,18 @@ const documentsApi = {
   },
   upload: async (formData) => {
     try {
-      const response = await fetch('http://localhost:8000/api/documents', {
+      const response = await fetch(documentsBaseUrl, {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({
           detail: `Server returned ${response.status} ${response.statusText}`
         }));
         throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
       }
-      
+
       return await response.json();
     } catch (error) {
       console.error('Documents API error:', error);
@@ -227,7 +264,7 @@ const documentsApi = {
   },
   download: async (id) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/documents/${id}/download`);
+      const response = await fetch(`${documentsBaseUrl}${id}/download`);
       if (!response.ok) {
         throw new Error(`Failed to download document: ${response.status} ${response.statusText}`);
       }
@@ -239,7 +276,7 @@ const documentsApi = {
   },
   update: async (id, data) => {
     try {
-      return await apiCall(`http://localhost:8000/api/documents/${id}`, {
+      return await apiCall(`${documentsBaseUrl}${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       });
@@ -250,7 +287,7 @@ const documentsApi = {
   },
   delete: async (id) => {
     try {
-      return await apiCall(`http://localhost:8000/api/documents/${id}`, {
+      return await apiCall(`${documentsBaseUrl}${id}`, {
         method: 'DELETE',
       });
     } catch (error) {
@@ -260,4 +297,17 @@ const documentsApi = {
   },
 };
 
-export { workOrdersApi, assetsApi, inventoryApi, serviceRequestsApi, locationsApi, documentsApi };
+// Preventive Maintenance API
+const pmApi = {
+  getAll: () => apiCall('http://localhost:8000/api/pm'),
+  generateWorkOrder: (pmId) => apiCall(`http://localhost:8000/api/pm/${pmId}/generate-wo`, {
+    method: 'POST',
+  }),
+};
+
+// Notifications API
+const notificationsApi = {
+  getAlerts: () => apiCall('http://localhost:8000/api/notifications/alerts'),
+};
+
+export { workOrdersApi, assetsApi, inventoryApi, serviceRequestsApi, locationsApi, documentsApi, pmApi, notificationsApi };

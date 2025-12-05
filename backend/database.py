@@ -1,50 +1,78 @@
-from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import firestore
 import os
+from dotenv import load_dotenv
 from datetime import datetime
 
+# Load environment variables
+load_dotenv()
+
 class Database:
-    client: AsyncIOMotorClient = None
-    db: AsyncIOMotorDatabase = None
+    db = None
 
 db_instance = Database()
 
-async def get_database() -> AsyncIOMotorDatabase:
+def connect_to_firestore():
+    """
+    Initializes the Firestore client.
+    """
+    if db_instance.db is None:
+        try:
+            # Get the path to the service account key from .env
+            cred_path = os.environ.get('FIREBASE_CREDENTIALS_PATH', 'serviceAccountKey.json')
+            
+            # Check if app is already initialized to avoid errors during reload
+            if not firebase_admin._apps:
+                cred = credentials.Certificate(cred_path)
+                firebase_admin.initialize_app(cred)
+            
+            db_instance.db = firestore.client()
+            print("Connected to Firebase Firestore!")
+            
+        except Exception as e:
+            print(f"Error connecting to Firebase: {e}")
+            raise e
+
+def get_database():
+    """
+    Returns the Firestore client instance. Connects if not already connected.
+    """
+    if db_instance.db is None:
+        connect_to_firestore()
     return db_instance.db
 
-async def connect_to_mongo():
-    mongo_url = os.environ.get('MONGO_URL')
-    db_name = os.environ.get('DB_NAME', 'cmms')
-    db_instance.client = AsyncIOMotorClient(mongo_url)
-    db_instance.db = db_instance.client[db_name]
-    print(f"Connected to MongoDB: {db_name}")
-
-async def close_mongo_connection():
-    if db_instance.client:
-        db_instance.client.close()
-        print("Closed MongoDB connection")
-
-# Helper function to generate unique numbers
-async def generate_unique_number(collection_name: str, prefix: str) -> str:
+def close_firestore_connection():
     """
-    Generate unique sequential numbers like WO-001, ASSET-001, etc.
+    Placeholder for closing connection. 
+    Firebase Admin SDK handles this automatically, but keeping for compatibility.
     """
-    db = db_instance.db
-    
-    # Get the counter collection
-    counter = await db.counters.find_one_and_update(
-        {"_id": collection_name},
-        {"$inc": {"seq": 1}},
-        upsert=True,
-        return_document=True
-    )
-    
-    seq_number = counter.get("seq", 1)
-    return f"{prefix}-{seq_number:03d}"
+    pass
 
-# Helper to update timestamps
-def add_timestamps(doc: dict, is_update: bool = False) -> dict:
+# Helper to generate unique IDs (Simple version for Firestore)
+def generate_unique_number(collection_name: str, prefix: str):
+    import time
+    # Using timestamp to ensure uniqueness in this simple implementation
+    return f"{prefix}-{int(time.time())}"
+
+def add_timestamps(data: dict, is_update: bool = False):
+    """
+    Adds createdAt and updatedAt timestamps to the data.
+    """
     now = datetime.utcnow()
     if not is_update:
-        doc['createdAt'] = now
-    doc['updatedAt'] = now
-    return doc
+        data['createdAt'] = now
+    data['updatedAt'] = now
+    return data
+
+def doc_with_id(doc):
+    """
+    Helper to merge the document ID into the document data.
+    Useful for converting Firestore snapshots to dicts with ID.
+    """
+    if not doc.exists:
+        return None
+    data = doc.to_dict()
+    data['id'] = doc.id
+    data['_id'] = doc.id  # Maintain compatibility with frontend expecting _id
+    return data

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { assetsApi, locationsApi } from '../services/api';
 
 const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' }) => {
+  console.log('WorkOrderModal rendered', { isOpen, mode });
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -39,7 +40,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
     if (mode === 'edit' && workOrder) {
       // Handle both backend format (_id) and mock data format (id)
       const id = workOrder._id || workOrder.id;
-      
+
       setFormData({
         title: workOrder.title || '',
         description: workOrder.description || '',
@@ -48,9 +49,9 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
         type: workOrder.type || 'preventive',
         assignedTo: workOrder.assignedTo || '',
         // Handle both date formats
-        dueDate: workOrder.dueDate ? 
-          (typeof workOrder.dueDate === 'string' ? 
-            workOrder.dueDate.slice(0, 16) : 
+        dueDate: workOrder.dueDate ?
+          (typeof workOrder.dueDate === 'string' ?
+            workOrder.dueDate.slice(0, 16) :
             new Date(workOrder.dueDate).toISOString().slice(0, 16)) : '',
         estimatedTime: workOrder.estimatedTime || '',
         location: workOrder.location || '',
@@ -82,7 +83,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
       // Fetch assets
       const assetsData = await assetsApi.getAll();
       setAssets(assetsData);
-      
+
       // Fetch locations
       const locationsData = await locationsApi.getAll();
       setLocations(locationsData);
@@ -99,7 +100,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
       ...prev,
       [name]: value
     }));
-    
+
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -114,7 +115,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
       ...prev,
       [name]: value
     }));
-    
+
     // Clear error when user makes a selection
     if (errors[name]) {
       setErrors(prev => ({
@@ -126,48 +127,42 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.title.trim()) {
       newErrors.title = 'Title is required';
     }
-    
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
-    }
-    
+
     if (!formData.dueDate) {
       newErrors.dueDate = 'Due date is required';
     }
-    
-    if (!formData.estimatedTime) {
-      newErrors.estimatedTime = 'Estimated time is required';
-    } else if (isNaN(formData.estimatedTime) || parseFloat(formData.estimatedTime) <= 0) {
+
+    if (formData.estimatedTime && (isNaN(formData.estimatedTime) || parseFloat(formData.estimatedTime) < 0)) {
       newErrors.estimatedTime = 'Estimated time must be a positive number';
     }
-    
-    if (!formData.location) {
-      newErrors.location = 'Location is required';
-    }
-    
+
     if (formData.cost && (isNaN(formData.cost) || parseFloat(formData.cost) < 0)) {
       newErrors.cost = 'Cost must be a positive number';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+    console.log('Submitting Work Order Form', formData);
+
     if (validateForm()) {
       // Prepare data for submission
       const submitData = {
         ...formData,
-        estimatedTime: parseFloat(formData.estimatedTime),
+        assetId: formData.assetId || null,
+        assignedTo: formData.assignedTo || null,
+        location: formData.location || null,
+        estimatedTime: formData.estimatedTime ? parseFloat(formData.estimatedTime) : 0,
         cost: formData.cost ? parseFloat(formData.cost) : 0
       };
-      
+
       // Only convert date if it exists
       if (formData.dueDate) {
         // Convert to format expected by backend (YYYY-MM-DDTHH:MM)
@@ -179,8 +174,11 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
         const minutes = String(date.getMinutes()).padStart(2, '0');
         submitData.dueDate = `${year}-${month}-${day}T${hours}:${minutes}`;
       }
-      
+
+      console.log('Sending data to parent:', submitData);
       onSubmit(submitData);
+    } else {
+      console.log('Validation failed', errors);
     }
   };
 
@@ -209,13 +207,13 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
             {mode === 'edit' ? 'Edit Work Order' : 'Create New Work Order'}
           </DialogTitle>
         </DialogHeader>
-        
+
         {loading && (
           <div className="text-center py-4">
             <p>Loading assets and locations...</p>
           </div>
         )}
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -230,7 +228,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
               />
               {errors.title && <p className="text-red-500 text-sm">{errors.title}</p>}
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="assetId">Asset</Label>
               <Select name="assetId" value={formData.assetId} onValueChange={(value) => handleSelectChange('assetId', value)}>
@@ -246,7 +244,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="priority">Priority</Label>
               <Select name="priority" value={formData.priority} onValueChange={(value) => handleSelectChange('priority', value)}>
@@ -261,7 +259,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="type">Type</Label>
               <Select name="type" value={formData.type} onValueChange={(value) => handleSelectChange('type', value)}>
@@ -274,7 +272,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="assignedTo">Assigned To</Label>
               <Input
@@ -285,7 +283,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
                 placeholder="Enter assignee name"
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="dueDate">Due Date *</Label>
               <Input
@@ -298,9 +296,9 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
               />
               {errors.dueDate && <p className="text-red-500 text-sm">{errors.dueDate}</p>}
             </div>
-            
+
             <div className="space-y-2">
-              <Label htmlFor="estimatedTime">Estimated Time (hours) *</Label>
+              <Label htmlFor="estimatedTime">Estimated Time (hours)</Label>
               <Input
                 id="estimatedTime"
                 name="estimatedTime"
@@ -313,7 +311,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
               />
               {errors.estimatedTime && <p className="text-red-500 text-sm">{errors.estimatedTime}</p>}
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="cost">Cost (LKR)</Label>
               <Input
@@ -328,12 +326,12 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
               />
               {errors.cost && <p className="text-red-500 text-sm">{errors.cost}</p>}
             </div>
-            
+
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="location">Location *</Label>
-              <Select 
-                name="location" 
-                value={formData.location} 
+              <Label htmlFor="location">Location</Label>
+              <Select
+                name="location"
+                value={formData.location}
                 onValueChange={(value) => handleSelectChange('location', value)}
                 className={errors.location ? 'border-red-500' : ''}
               >
@@ -351,9 +349,9 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
               {errors.location && <p className="text-red-500 text-sm">{errors.location}</p>}
             </div>
           </div>
-          
+
           <div className="space-y-2">
-            <Label htmlFor="description">Description *</Label>
+            <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
               name="description"
@@ -365,7 +363,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
             />
             {errors.description && <p className="text-red-500 text-sm">{errors.description}</p>}
           </div>
-          
+
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>
             <Textarea
@@ -377,7 +375,7 @@ const WorkOrderModal = ({ isOpen, onClose, onSubmit, workOrder, mode = 'create' 
               rows={2}
             />
           </div>
-          
+
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel

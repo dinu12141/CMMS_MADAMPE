@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
+import { assetsApi } from '../services/api';
 
 const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing, locations = [] }) => {
   const [formData, setFormData] = useState({
@@ -29,6 +29,8 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing, locations
   ]);
   
   const [imagePreview, setImagePreview] = useState(null); // Added image preview state
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
 
   useEffect(() => {
     if (isEditing && asset) {
@@ -84,6 +86,13 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing, locations
       setImagePreview(null); // Reset image preview when adding new asset
     }
   }, [isEditing, asset, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSubmitError(null);
+      setSubmitting(false);
+    }
+  }, [isOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -152,54 +161,26 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing, locations
       }
     });
     
-    // Prepare form data for submission
-    let submitData;
+    setSubmitError(null);
+    setSubmitting(true);
     
-    // Check if we have an image file to upload
-    if (formData.image && formData.image instanceof File) {
-      // Create FormData for file upload
-      const formDataObj = new FormData();
-      formDataObj.append('name', formData.name);
-      formDataObj.append('location', formData.location);
+    try {
+      let imageUrl = typeof formData.image === 'string' ? formData.image : asset?.imageUrl;
       
-      // Only append assetNumber if it's provided
-      if (formData.assetNumber && formData.assetNumber.trim()) {
-        formDataObj.append('assetNumber', formData.assetNumber.trim());
+      if (formData.image && formData.image instanceof File) {
+        const uploadResult = await assetsApi.uploadImage(formData.image);
+        imageUrl = uploadResult.url;
       }
       
-      // Append optional fields only if they have values
-      if (formData.category) formDataObj.append('category', formData.category);
-      if (formData.manufacturer) formDataObj.append('manufacturer', formData.manufacturer);
-      if (formData.model) formDataObj.append('model', formData.model);
-      if (formData.serialNumber) formDataObj.append('serialNumber', formData.serialNumber);
-      if (formData.purchaseDate) formDataObj.append('purchaseDate', formData.purchaseDate);
-      if (formData.installDate) formDataObj.append('installDate', formData.installDate);
-      if (formData.warrantyExpiry) formDataObj.append('warrantyExpiry', formData.warrantyExpiry);
-      if (formData.criticality) formDataObj.append('criticality', formData.criticality);
-      
-      // Add specifications as a JSON string
-      if (Object.keys(specifications).length > 0) {
-        formDataObj.append('specifications', JSON.stringify(specifications));
-      }
-      
-      // Add the image file
-      formDataObj.append('image', formData.image);
-      
-      submitData = formDataObj;
-    } else {
-      // Regular JSON submission (no image or editing existing asset without changing image)
-      submitData = {
+      const submitData = {
         name: formData.name,
         location: formData.location,
-        specifications
+        specifications,
       };
       
-      // Only include assetNumber if it's provided
       if (formData.assetNumber && formData.assetNumber.trim()) {
         submitData.assetNumber = formData.assetNumber.trim();
       }
-      
-      // Include optional fields only if they have values
       if (formData.category) submitData.category = formData.category;
       if (formData.manufacturer) submitData.manufacturer = formData.manufacturer;
       if (formData.model) submitData.model = formData.model;
@@ -208,14 +189,15 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing, locations
       if (formData.installDate) submitData.installDate = formData.installDate;
       if (formData.warrantyExpiry) submitData.warrantyExpiry = formData.warrantyExpiry;
       if (formData.criticality) submitData.criticality = formData.criticality;
+      if (imageUrl) submitData.imageUrl = imageUrl;
       
-      // If editing and there was an existing image URL, preserve it unless we're removing it
-      if (isEditing && asset && asset.imageUrl && !formData.image) {
-        submitData.imageUrl = asset.imageUrl;
-      }
+      await onSubmit(submitData);
+    } catch (error) {
+      console.error('Failed to save asset', error);
+      setSubmitError(error.message || 'Failed to save asset. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
-    
-    onSubmit(submitData);
   };
 
   return (
@@ -436,13 +418,17 @@ const AssetFormModal = ({ isOpen, onClose, onSubmit, asset, isEditing, locations
             </div>
             
             <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={onClose}>
+              <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
                 Cancel
               </Button>
-              <Button type="submit">
-                {isEditing ? 'Update Asset' : 'Add Asset'}
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Saving...' : (isEditing ? 'Update Asset' : 'Add Asset')}
               </Button>
             </div>
+            
+            {submitError && (
+              <p className="text-sm text-red-500">{submitError}</p>
+            )}
           </form>
         </ScrollArea>
       </DialogContent>

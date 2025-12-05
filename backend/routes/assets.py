@@ -1,333 +1,177 @@
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, UploadFile, File
+from typing import List, Optional, Dict, Any
 from datetime import date, datetime
-import json
 import logging
 import os
 import uuid
 from pathlib import Path
-
 from models import Asset, AssetCreate, AssetUpdate
-from database import get_database, generate_unique_number, add_timestamps
+from database import get_database, generate_unique_number, add_timestamps, doc_with_id
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/assets", tags=["Assets"])
 
-# Ensure assets images directory exists inside uploads
-ASSETS_IMAGES_DIR = os.path.join("uploads", "assets")
-if not os.path.exists(ASSETS_IMAGES_DIR):
-    os.makedirs(ASSETS_IMAGES_DIR)
+BASE_DIR = Path(__file__).resolve().parent.parent
+UPLOADS_DIR = BASE_DIR / "uploads"
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+ASSETS_IMAGES_DIR = UPLOADS_DIR / "assets"
+ASSETS_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _datetime_from_date(value: Optional[date]) -> Optional[datetime]:
+    if value and isinstance(value, date) and not isinstance(value, datetime):
+        return datetime.combine(value, datetime.min.time())
+    return value
+
+
+def _serialize_asset_for_response(asset_dict: Dict[str, Any]) -> Dict[str, Any]:
+    date_fields = [
+        "purchaseDate",
+        "installDate",
+        "warrantyExpiry",
+        "lastMaintenance",
+        "nextMaintenance",
+        "createdAt",
+        "updatedAt",
+    ]
+    for field in date_fields:
+        value = asset_dict.get(field)
+        if isinstance(value, datetime):
+            asset_dict[field] = value.date().isoformat()
+    return asset_dict
 
 @router.get("", response_model=List[Asset])
-async def list_assets(
+def list_assets(
     location: Optional[str] = None,
     status: Optional[str] = None,
     category: Optional[str] = None,
     limit: Optional[int] = 100,
 ):
-    db = await get_database()
-    
-    # Build filter
-    filter_dict = {}
+    db = get_database()
+
+    query = db.collection("assets")
     if location:
-        filter_dict["location"] = location
+        query = query.where("location", "==", location)
     if status:
-        filter_dict["status"] = status
+        query = query.where("status", "==", status)
     if category:
-        filter_dict["category"] = category
-    
-    # Query database
-    cursor = db.assets.find(filter_dict).limit(limit)
-    assets = await cursor.to_list(length=limit)
-    
-    # Convert ObjectId to string for JSON serialization
-    for asset in assets:
-        asset["_id"] = str(asset["_id"])
-    
+        query = query.where("category", "==", category)
+    if limit:
+        query = query.limit(limit)
+
+    documents = query.stream()
+    assets = []
+    for doc in documents:
+        asset = doc_with_id(doc)
+        if asset:
+            assets.append(asset)
+
     return assets
 
 @router.get("/{asset_id}", response_model=Asset)
-async def get_asset(asset_id: str):
-    db = await get_database()
-    
-    # Validate ObjectId format
-    from bson import ObjectId
-    if not ObjectId.is_valid(asset_id):
-        raise HTTPException(status_code=400, detail="Invalid asset ID")
-    
-    asset = await db.assets.find_one({"_id": ObjectId(asset_id)})
-    
+def get_asset(asset_id: str):
+    db = get_database()
+
+    doc = db.collection("assets").document(asset_id).get()
+    asset = doc_with_id(doc)
+
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
-    
-    asset["_id"] = str(asset["_id"])
     return asset
 
 @router.post("", response_model=Asset)
-async def create_asset(request: Request):
+def create_asset(asset: AssetCreate):
     try:
-        # Check content type to determine how to parse the request
-        content_type = request.headers.get('content-type', '').lower()
-        logger.info(f"Content-Type: {content_type}")
-        
-        # Initialize variables
-        name = None
-        location = None
-        asset_number = None
-        category = None
-        manufacturer = None
-        model = None
-        serial_number = None
-        purchase_date = None
-        install_date = None
-        warranty_expiry = None
-        criticality = None
-        specs = {}
-        image_file = None
-        
-        # Parse request data based on content type
-        if 'multipart/form-data' in content_type:
-            # Handle form data (with possible file upload)
-            logger.info("Processing form data request")
-            form_data = await request.form()
-            
-            # Extract all fields from form data
-            name = form_data.get("name")
-            location = form_data.get("location")
-            asset_number = form_data.get("assetNumber")
-            category = form_data.get("category")
-            manufacturer = form_data.get("manufacturer")
-            model = form_data.get("model")
-            serial_number = form_data.get("serialNumber")
-            purchase_date = form_data.get("purchaseDate")
-            install_date = form_data.get("installDate")
-            warranty_expiry = form_data.get("warrantyExpiry")
-            criticality = form_data.get("criticality")
-            specifications_str = form_data.get("specifications")
-            image_file = form_data.get("image")
-            
-            # Parse dates
-            if purchase_date and isinstance(purchase_date, str):
-                try:
-                    purchase_date = date.fromisoformat(purchase_date)
-                except ValueError:
-                    purchase_date = None
-                    
-            if install_date and isinstance(install_date, str):
-                try:
-                    install_date = date.fromisoformat(install_date)
-                except ValueError:
-                    install_date = None
-                    
-            if warranty_expiry and isinstance(warranty_expiry, str):
-                try:
-                    warranty_expiry = date.fromisoformat(warranty_expiry)
-                except ValueError:
-                    warranty_expiry = None
-            
-            # Parse specifications if provided
-            if specifications_str:
-                try:
-                    specs = json.loads(specifications_str)
-                except (json.JSONDecodeError, TypeError):
-                    logger.warning("Invalid specifications format in form data")
-        else:
-            # Handle JSON data
-            logger.info("Processing JSON request")
-            body = await request.json()
-            
-            # Extract fields from JSON
-            name = body.get("name")
-            location = body.get("location")
-            asset_number = body.get("assetNumber")
-            category = body.get("category")
-            manufacturer = body.get("manufacturer")
-            model = body.get("model")
-            serial_number = body.get("serialNumber")
-            purchase_date = body.get("purchaseDate")
-            install_date = body.get("installDate")
-            warranty_expiry = body.get("warrantyExpiry")
-            criticality = body.get("criticality")
-            specs = body.get("specifications", {})
-        
-        # Validate required fields
-        if not name or not location:
-            raise HTTPException(status_code=400, detail="Name and location are required")
-        
-        logger.info(f"Creating asset with name: {name}, location: {location}")
-        db = await get_database()
-        
-        # Create asset document with default values for required fields
-        asset_dict = {
-            "name": name,
-            "location": location,
-            "assetNumber": asset_number,
-            "category": category or "",
-            "manufacturer": manufacturer or "",
-            "model": model or "",
-            "serialNumber": serial_number or "",
-            "purchaseDate": purchase_date,
-            "installDate": install_date,
-            "warrantyExpiry": warranty_expiry,
-            "criticality": criticality or "medium",
-            "specifications": specs or {}
-        }
-        
-        logger.info(f"Asset dict before image handling: {asset_dict}")
-        
-        # Handle image upload (only for form data requests)
-        image_url = None
-        if image_file and hasattr(image_file, 'filename') and image_file.filename:
-            try:
-                logger.info(f"Processing image: {image_file.filename}")
-                # Generate unique filename
-                file_extension = os.path.splitext(image_file.filename)[1]
-                unique_filename = f"{uuid.uuid4()}{file_extension}"
-                file_path = os.path.join(ASSETS_IMAGES_DIR, unique_filename)
-                logger.info(f"Saving image to: {file_path}")
-                
-                # Save the file
-                content = await image_file.read()
-                logger.info(f"Image content length: {len(content)}")
-                with open(file_path, "wb") as buffer:
-                    buffer.write(content)
-                
-                # Store the image URL (relative path for static file serving)
-                image_url = f"/uploads/assets/{unique_filename}"
-                asset_dict["imageUrl"] = image_url
-                logger.info(f"Image saved successfully: {image_url}")
-            except Exception as e:
-                logger.error(f"Error saving image: {e}", exc_info=True)
-                # Don't fail the entire asset creation if image upload fails
-                pass
-        else:
-            logger.info("No image to process")
-        
-        # Set default dates if not provided (convert to datetime for MongoDB)
-        today = datetime.utcnow().date()
-        asset_dict["purchaseDate"] = asset_dict.get("purchaseDate") or today
-        asset_dict["installDate"] = asset_dict.get("installDate") or today
-        asset_dict["warrantyExpiry"] = asset_dict.get("warrantyExpiry") or today
-        
-        # Convert date objects to datetime for MongoDB storage
-        if isinstance(asset_dict["purchaseDate"], date) and not isinstance(asset_dict["purchaseDate"], datetime):
-            asset_dict["purchaseDate"] = datetime.combine(asset_dict["purchaseDate"], datetime.min.time())
-        if isinstance(asset_dict["installDate"], date) and not isinstance(asset_dict["installDate"], datetime):
-            asset_dict["installDate"] = datetime.combine(asset_dict["installDate"], datetime.min.time())
-        if isinstance(asset_dict["warrantyExpiry"], date) and not isinstance(asset_dict["warrantyExpiry"], datetime):
-            asset_dict["warrantyExpiry"] = datetime.combine(asset_dict["warrantyExpiry"], datetime.min.time())
-        
-        # Set default criticality if not provided
+        db = get_database()
+        assets_collection = db.collection("assets")
+
+        asset_dict = asset.model_dump()
+        asset_dict["category"] = asset_dict.get("category") or ""
+        asset_dict["manufacturer"] = asset_dict.get("manufacturer") or ""
+        asset_dict["model"] = asset_dict.get("model") or ""
+        asset_dict["serialNumber"] = asset_dict.get("serialNumber") or ""
         asset_dict["criticality"] = asset_dict.get("criticality") or "medium"
-        
-        # Set default specifications if not provided
         asset_dict["specifications"] = asset_dict.get("specifications") or {}
-        
-        # Use provided asset number or generate a unique one
+
+        today = datetime.utcnow().date()
+        asset_dict["purchaseDate"] = _datetime_from_date(asset_dict.get("purchaseDate") or today)
+        asset_dict["installDate"] = _datetime_from_date(asset_dict.get("installDate") or today)
+        asset_dict["warrantyExpiry"] = _datetime_from_date(asset_dict.get("warrantyExpiry") or today)
+
         if asset_dict.get("assetNumber") and str(asset_dict["assetNumber"]).strip():
-            # Check if the provided asset number is already in use
-            existing_asset = await db.assets.find_one({"assetNumber": str(asset_dict["assetNumber"]).strip()})
-            if existing_asset:
+            provided_number = str(asset_dict["assetNumber"]).strip()
+            existing_docs = list(
+                assets_collection.where("assetNumber", "==", provided_number).limit(1).stream()
+            )
+            if existing_docs:
                 raise HTTPException(status_code=400, detail="Asset number already exists")
-            asset_dict["assetNumber"] = str(asset_dict["assetNumber"]).strip()
+            asset_dict["assetNumber"] = provided_number
         else:
-            # Generate unique asset number
-            asset_dict["assetNumber"] = await generate_unique_number("assets", "ASSET")
-        
+            asset_dict["assetNumber"] = generate_unique_number("assets", "ASSET")
+
         asset_dict["status"] = "operational"
         asset_dict["condition"] = "good"
         asset_dict["maintenanceCost"] = 0
         asset_dict["downtime"] = 0
         asset_dict = add_timestamps(asset_dict)
-        
-        logger.info(f"Final asset dict: {asset_dict}")
-        
-        # Insert into database
-        result = await db.assets.insert_one(asset_dict)
-        asset_dict["_id"] = str(result.inserted_id)
-        
-        # Convert date objects to strings for response
-        date_fields = ["purchaseDate", "installDate", "warrantyExpiry", "lastMaintenance", "nextMaintenance"]
-        for field in date_fields:
-            if field in asset_dict and isinstance(asset_dict[field], datetime):
-                # Convert datetime back to date string for response
-                asset_dict[field] = asset_dict[field].date().isoformat()
-        
-        logger.info(f"Asset created successfully with ID: {asset_dict['_id']}")
-        return asset_dict
+
+        asset_ref = assets_collection.document()
+        asset_dict["_id"] = asset_ref.id
+        asset_dict["id"] = asset_ref.id
+        asset_ref.set(asset_dict)
+
+        return _serialize_asset_for_response(asset_dict)
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except Exception as e:
         logger.error(f"Error creating asset: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.put("/{asset_id}", response_model=Asset)
-async def update_asset(asset_id: str, asset: AssetUpdate):
-    db = await get_database()
-    
-    # Validate ObjectId format
-    from bson import ObjectId
-    if not ObjectId.is_valid(asset_id):
-        raise HTTPException(status_code=400, detail="Invalid asset ID")
-    
-    # Build update dict (exclude None values)
-    update_dict = {k: v for k, v in asset.dict().items() if v is not None}
-    
+def update_asset(asset_id: str, asset: AssetUpdate):
+    db = get_database()
+
+    asset_ref = db.collection("assets").document(asset_id)
+    existing = asset_ref.get()
+    if not existing.exists:
+        raise HTTPException(status_code=404, detail="Asset not found")
+
+    update_dict = {k: v for k, v in asset.dict(exclude_unset=True).items() if v is not None}
+
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")
-    
-    # Handle date conversion for update
+
     date_fields = ["purchaseDate", "installDate", "warrantyExpiry", "lastMaintenance", "nextMaintenance"]
     for field in date_fields:
-        if field in update_dict and isinstance(update_dict[field], date) and not isinstance(update_dict[field], datetime):
-            update_dict[field] = datetime.combine(update_dict[field], datetime.min.time())
-    
+        if field in update_dict:
+            update_dict[field] = _datetime_from_date(update_dict[field])
+
     update_dict = add_timestamps(update_dict, is_update=True)
-    
-    # Update database
-    result = await db.assets.find_one_and_update(
-        {"_id": ObjectId(asset_id)},
-        {"$set": update_dict},
-        return_document=True
-    )
-    
-    if not result:
-        raise HTTPException(status_code=404, detail="Asset not found")
-    
-    result["_id"] = str(result["_id"])
-    return result
+
+    asset_ref.update(update_dict)
+    updated_asset = doc_with_id(asset_ref.get())
+    return _serialize_asset_for_response(updated_asset)
 
 @router.delete("/{asset_id}")
-async def delete_asset(asset_id: str):
-    db = await get_database()
-    
-    # Validate ObjectId format
-    from bson import ObjectId
-    if not ObjectId.is_valid(asset_id):
-        raise HTTPException(status_code=400, detail="Invalid asset ID")
-    
-    result = await db.assets.delete_one({"_id": ObjectId(asset_id)})
-    
-    if result.deleted_count == 0:
+def delete_asset(asset_id: str):
+    db = get_database()
+
+    asset_ref = db.collection("assets").document(asset_id)
+    if not asset_ref.get().exists:
         raise HTTPException(status_code=404, detail="Asset not found")
-    
+
+    asset_ref.delete()
     return {"message": "Asset deleted successfully"}
 
 # Image upload endpoint for existing assets
 @router.post("/{asset_id}/image")
-async def upload_asset_image(asset_id: str, file: UploadFile = File(...)):
-    db = await get_database()
-    
-    # Validate ObjectId format
-    from bson import ObjectId
-    if not ObjectId.is_valid(asset_id):
-        raise HTTPException(status_code=400, detail="Invalid asset ID")
-    
-    # Check if asset exists
-    asset = await db.assets.find_one({"_id": ObjectId(asset_id)})
+def upload_asset_image(asset_id: str, file: UploadFile = File(...)):
+    db = get_database()
+
+    asset_ref = db.collection("assets").document(asset_id)
+    asset = doc_with_id(asset_ref.get())
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     
@@ -338,19 +182,35 @@ async def upload_asset_image(asset_id: str, file: UploadFile = File(...)):
         file_extension = ".jpg"  # default to jpg
     
     file_name = f"{asset_id}_{uuid.uuid4()}{file_extension}"
-    file_path = os.path.join(ASSETS_IMAGES_DIR, file_name)
+    file_path = ASSETS_IMAGES_DIR / file_name
     
     with open(file_path, "wb") as buffer:
-        content = await file.read()
+        content = file.file.read()
         buffer.write(content)
     
     # Update asset with image URL (relative path for static file serving)
     image_url = f"/uploads/assets/{file_name}"
-    result = await db.assets.find_one_and_update(
-        {"_id": ObjectId(asset_id)},
-        {"$set": {"imageUrl": image_url, "updatedAt": datetime.utcnow()}},
-        return_document=True
-    )
-    
-    result["_id"] = str(result["_id"])
-    return {"imageUrl": image_url, "asset": result}
+    asset_ref.update({"imageUrl": image_url, "updatedAt": datetime.utcnow()})
+    updated_asset = doc_with_id(asset_ref.get())
+
+    return {"imageUrl": image_url, "asset": _serialize_asset_for_response(updated_asset)}
+
+
+@router.post("/upload")
+def upload_asset_file(file: UploadFile = File(...)):
+    """
+    Accepts an image upload and stores it under /uploads/assets.
+    Returns the public URL that can be persisted on the Asset document.
+    """
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="File is required")
+
+    file_extension = os.path.splitext(file.filename)[1] or ".jpg"
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = ASSETS_IMAGES_DIR / unique_filename
+
+    with open(file_path, "wb") as buffer:
+        content = file.file.read()
+        buffer.write(content)
+
+    return {"url": f"/uploads/assets/{unique_filename}"}

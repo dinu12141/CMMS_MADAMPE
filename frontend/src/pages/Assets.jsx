@@ -4,8 +4,8 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
-import { 
-  Plus, 
+import {
+  Plus,
   Filter,
   Package,
   TrendingUp,
@@ -27,21 +27,21 @@ const Assets = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [criticalityFilter, setCriticalityFilter] = useState('all');
   const [locationFilter, setLocationFilter] = useState('all');
-  
+
   const [assets, setAssets] = useState([]);
   const [locations, setLocations] = useState([]);
   const [filteredAssets, setFilteredAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [usingMockData, setUsingMockData] = useState(false);
-  
+
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [assetHistory, setAssetHistory] = useState(null);
-  
+
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
 
   const { showSuccess, showWarning, showError } = useNotification();
@@ -69,7 +69,7 @@ const Assets = () => {
       }));
       setAssets(assetsWithId);
       setUsingMockData(false);
-      
+
       // Show a notification when assets are loaded
       showSuccess('Assets Loaded', `Successfully loaded ${data.length} assets`);
     } catch (err) {
@@ -106,7 +106,7 @@ const Assets = () => {
   // Function to get location name by ID
   const getLocationName = (locationId) => {
     if (!locationId) return 'Unknown Location';
-    
+
     // Find location by ID
     const location = locations.find(loc => (loc._id || loc.id) === locationId);
     return location ? location.name : 'Unknown Location';
@@ -114,7 +114,7 @@ const Assets = () => {
 
   const getLocationIdByName = (locationName) => {
     if (!locationName || locationName === 'all') return 'all';
-    
+
     // Find location by name
     const location = locations.find(loc => loc.name === locationName);
     return location ? (location._id || location.id) : null;
@@ -122,10 +122,10 @@ const Assets = () => {
 
   const applyFilters = () => {
     let result = assets;
-    
+
     // Search term filter
     if (searchTerm) {
-      result = result.filter(asset => 
+      result = result.filter(asset =>
         asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (asset.assetNumber && asset.assetNumber.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (asset.manufacturer && asset.manufacturer.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -133,22 +133,22 @@ const Assets = () => {
         (asset.serialNumber && asset.serialNumber.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
-    
+
     // Status filter
     if (statusFilter !== 'all') {
       result = result.filter(asset => asset.status === statusFilter);
     }
-    
+
     // Criticality filter
     if (criticalityFilter !== 'all') {
       result = result.filter(asset => asset.criticality === criticalityFilter);
     }
-    
+
     // Location filter
     if (locationFilter !== 'all') {
       result = result.filter(asset => asset.location === locationFilter);
     }
-    
+
     setFilteredAssets(result);
   };
 
@@ -226,11 +226,11 @@ const Assets = () => {
           ...updatedAsset,
           id: updatedAsset.id || updatedAsset._id
         };
-        setAssets(assets.map(asset => 
+        setAssets(assets.map(asset =>
           asset.id === selectedAsset.id ? assetWithId : asset
         ));
         showSuccess('Asset Updated', `Asset ${assetData.name} has been successfully updated`);
-        
+
         // Refresh locations data to update asset counts
         loadLocations();
       } else {
@@ -244,10 +244,10 @@ const Assets = () => {
         // Add the new asset to the list
         setAssets([...assets, assetWithId]);
         showSuccess('Asset Created', `New asset ${assetData.name} has been successfully created`);
-        
+
         // Refresh the assets list to ensure we have the latest data from the database
         await loadAssets();
-        
+
         // Refresh locations data to update asset counts
         loadLocations();
       }
@@ -283,14 +283,14 @@ const Assets = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header 
-        title="Assets & Equipment" 
-        subtitle={usingMockData 
-          ? "Using mock data - backend unavailable" 
+      <Header
+        title="Assets & Equipment"
+        subtitle={usingMockData
+          ? "Using mock data - backend unavailable"
           : "Track and manage all facility assets and equipment"
         }
       />
-      
+
       <div className="p-4">
         {/* Actions Bar - Made more compact */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -305,8 +305,8 @@ const Assets = () => {
                 className="pl-8 w-full sm:w-64 h-9 text-sm"
               />
             </div>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setAdvancedFiltersOpen(!advancedFiltersOpen)}
               className="flex items-center gap-1 h-9 px-2 text-sm"
             >
@@ -314,9 +314,9 @@ const Assets = () => {
               Filters
             </Button>
           </div>
-          <PermissionButton 
+          <PermissionButton
             page="assets"
-            className="bg-blue-600 hover:bg-blue-700 h-9 px-3 text-sm" 
+            className="bg-blue-600 hover:bg-blue-700 h-9 px-3 text-sm"
             onClick={handleAddAsset}
           >
             <Plus className="w-4 h-4 mr-1" />
@@ -342,7 +342,7 @@ const Assets = () => {
                   ))}
                 </select>
               </div>
-              
+
               <div>
                 <label className="text-xs font-medium text-slate-700 mb-1 block">Criticality</label>
                 <select
@@ -357,7 +357,7 @@ const Assets = () => {
                   ))}
                 </select>
               </div>
-              
+
               <div>
                 <label className="text-xs font-medium text-slate-700 mb-1 block">Location</label>
                 <select
@@ -374,10 +374,10 @@ const Assets = () => {
                 </select>
               </div>
             </div>
-            
+
             <div className="flex justify-end mt-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 className="h-7 text-xs px-2"
                 onClick={() => {
@@ -409,9 +409,9 @@ const Assets = () => {
                     {/* Asset Image Preview */}
                     {asset.imageUrl && (
                       <div className="w-16 h-16 flex-shrink-0">
-                        <img 
-                          src={`http://localhost:8000${asset.imageUrl}`} 
-                          alt={asset.name} 
+                        <img
+                          src={`http://localhost:8000${asset.imageUrl}`}
+                          alt={asset.name}
                           className="w-full h-full object-contain rounded border"
                         />
                       </div>
@@ -454,24 +454,24 @@ const Assets = () => {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="flex-1 h-8 text-xs px-2"
                     onClick={() => handleViewHistory(asset)}
                   >
                     View History
                   </Button>
-                  <PermissionButton 
+                  <PermissionButton
                     page="assets"
-                    size="sm" 
+                    size="sm"
                     className="flex-1 h-8 text-xs px-2"
                     onClick={() => handleEditAsset(asset)}
                   >
                     Edit
                   </PermissionButton>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     className="flex-1 bg-blue-600 hover:bg-blue-700 h-8 text-xs px-2"
                     onClick={() => handleViewDetails(asset)}
                   >
@@ -487,8 +487,8 @@ const Assets = () => {
           <div className="text-center py-8">
             <Package className="w-10 h-10 text-slate-300 mx-auto mb-2" />
             <p className="text-slate-500 text-sm">No assets found matching your criteria.</p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="mt-3 h-8 text-xs"
               onClick={() => {
                 setSearchTerm('');
@@ -513,14 +513,14 @@ const Assets = () => {
           handleEditAsset(asset);
         }}
       />
-      
+
       <AssetHistoryModal
         isOpen={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
         asset={selectedAsset}
         historyData={assetHistory}
       />
-      
+
       <AssetFormModal
         isOpen={showFormModal}
         onClose={() => setShowFormModal(false)}

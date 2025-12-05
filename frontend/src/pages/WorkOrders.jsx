@@ -4,16 +4,33 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
-import { 
-  Plus, 
+import {
+  Plus,
   Filter,
   Wrench,
   Clock,
   User,
   AlertCircle,
   CheckCircle,
-  Calendar
+  Calendar,
+  AlertOctagon,
+  ArrowUp,
+  Minus,
+  ArrowDown,
+  Circle,
+  Timer,
+  CheckCircle2,
+  PauseCircle,
+  ShieldCheck,
+  Siren
 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import { workOrdersApi } from '../services/api';
 import { useNotification } from '../hooks/useNotification';
 import ProgressUpdateModal from '../components/ProgressUpdateModal';
@@ -26,7 +43,7 @@ const WorkOrders = () => {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  
+
   const [workOrdersData, setWorkOrdersData] = useState([]);
   const [filteredWorkOrders, setFilteredWorkOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,15 +52,32 @@ const WorkOrders = () => {
   const [showWorkOrderModal, setShowWorkOrderModal] = useState(false);
   const [currentWorkOrder, setCurrentWorkOrder] = useState(null);
   const [modalMode, setModalMode] = useState('create');
-  
+
   const [selectedWorkOrder, setSelectedWorkOrder] = useState(null);
   const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
-  
+
   const { showSuccess, showWarning, showError } = useNotification();
 
-  // Load work orders on component mount
+  // Load work orders on component mount and poll for updates
   useEffect(() => {
     loadWorkOrders();
+
+    // Poll for updates every 30 seconds
+    const intervalId = setInterval(() => {
+      // We don't want to show loading spinner on background updates
+      const fetchBackground = async () => {
+        try {
+          const data = await workOrdersApi.getAll();
+          setWorkOrdersData(data);
+          setUsingMockData(false);
+        } catch (err) {
+          console.error('Error polling work orders:', err);
+        }
+      };
+      fetchBackground();
+    }, 30000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   // Apply filters when work orders or filter values change
@@ -57,7 +91,7 @@ const WorkOrders = () => {
       const data = await workOrdersApi.getAll();
       setWorkOrdersData(data);
       setUsingMockData(false);
-      
+
       // Show a notification when work orders are loaded
       showSuccess('Work Orders Loaded', `Successfully loaded ${data.length} work orders`);
     } catch (err) {
@@ -74,33 +108,63 @@ const WorkOrders = () => {
 
   const applyFilters = () => {
     let result = workOrdersData;
-    
+
     // Search term filter
     if (searchTerm) {
-      result = result.filter(wo => 
+      result = result.filter(wo =>
         wo.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         wo.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         wo.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         wo.description.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     // Priority filter
     if (priorityFilter !== 'all') {
       result = result.filter(wo => wo.priority === priorityFilter);
     }
-    
+
     // Status filter
     if (statusFilter !== 'all') {
       result = result.filter(wo => wo.status === statusFilter);
     }
-    
+
     // Type filter
     if (typeFilter !== 'all') {
       result = result.filter(wo => wo.type === typeFilter);
     }
-    
+
     setFilteredWorkOrders(result);
+  };
+
+  const getPriorityIcon = (priority) => {
+    switch (priority) {
+      case 'critical': return <AlertOctagon className="w-3 h-3 mr-1" />;
+      case 'high': return <ArrowUp className="w-3 h-3 mr-1" />;
+      case 'medium': return <Minus className="w-3 h-3 mr-1" />;
+      case 'low': return <ArrowDown className="w-3 h-3 mr-1" />;
+      default: return null;
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'open': return <Circle className="w-3 h-3 mr-1" />;
+      case 'in-progress': return <Timer className="w-3 h-3 mr-1" />;
+      case 'completed': return <CheckCircle2 className="w-3 h-3 mr-1" />;
+      case 'on-hold': return <PauseCircle className="w-3 h-3 mr-1" />;
+      case 'cancelled': return <AlertCircle className="w-3 h-3 mr-1" />;
+      default: return null;
+    }
+  };
+
+  const getTypeIcon = (type) => {
+    switch (type) {
+      case 'preventive': return <ShieldCheck className="w-3 h-3 mr-1" />;
+      case 'corrective': return <Wrench className="w-3 h-3 mr-1" />;
+      case 'emergency': return <Siren className="w-3 h-3 mr-1" />;
+      default: return null;
+    }
   };
 
   const getPriorityColor = (priority) => {
@@ -116,18 +180,18 @@ const WorkOrders = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case 'open': return 'bg-blue-100 text-blue-700';
-      case 'in-progress': return 'bg-yellow-100 text-yellow-700';
+      case 'in-progress': return 'bg-purple-100 text-purple-700'; // Changed to purple as requested
       case 'completed': return 'bg-green-100 text-green-700';
       case 'cancelled': return 'bg-gray-100 text-gray-700';
-      case 'on-hold': return 'bg-purple-100 text-purple-700';
+      case 'on-hold': return 'bg-gray-100 text-gray-700'; // Changed to gray as requested
       default: return 'bg-gray-100 text-gray-700';
     }
   };
 
   const getTypeColor = (type) => {
     switch (type) {
-      case 'preventive': return 'bg-green-100 text-green-700';
-      case 'corrective': return 'bg-blue-100 text-blue-700';
+      case 'preventive': return 'bg-teal-100 text-teal-700'; // Changed to teal
+      case 'corrective': return 'bg-amber-100 text-amber-700'; // Changed to amber
       case 'emergency': return 'bg-red-100 text-red-700';
       default: return 'bg-gray-100 text-gray-700';
     }
@@ -139,6 +203,7 @@ const WorkOrders = () => {
   const types = ['all', 'preventive', 'corrective', 'emergency'];
 
   const handleCreateWorkOrder = () => {
+    console.log('Create Work Order button clicked');
     setCurrentWorkOrder(null);
     setModalMode('create');
     setShowWorkOrderModal(true);
@@ -166,7 +231,7 @@ const WorkOrders = () => {
       } else if (modalMode === 'edit') {
         // Update existing work order
         const updatedWorkOrder = await workOrdersApi.update(currentWorkOrder.id, workOrderData);
-        setWorkOrdersData(workOrdersData.map(wo => 
+        setWorkOrdersData(workOrdersData.map(wo =>
           wo.id === currentWorkOrder.id ? updatedWorkOrder : wo
         ));
         showSuccess('Work Order Updated', 'Work order has been successfully updated');
@@ -197,13 +262,13 @@ const WorkOrders = () => {
   const handleProgressSubmit = async (updatedWorkOrder) => {
     try {
       // Update the local state with the updated work order from the API
-      const updatedWorkOrders = workOrdersData.map(wo => 
+      const updatedWorkOrders = workOrdersData.map(wo =>
         (wo.id === updatedWorkOrder.id || wo._id === updatedWorkOrder._id)
-          ? { 
-              ...updatedWorkOrder,
-              id: updatedWorkOrder.id || updatedWorkOrder._id,
-              _id: updatedWorkOrder._id || updatedWorkOrder.id
-            } 
+          ? {
+            ...updatedWorkOrder,
+            id: updatedWorkOrder.id || updatedWorkOrder._id,
+            _id: updatedWorkOrder._id || updatedWorkOrder.id
+          }
           : wo
       );
       setWorkOrdersData(updatedWorkOrders);
@@ -240,14 +305,14 @@ const WorkOrders = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header 
-        title="Work Orders" 
-        subtitle={usingMockData 
-          ? "Using mock data - backend unavailable" 
+      <Header
+        title="Work Orders"
+        subtitle={usingMockData
+          ? "Using mock data - backend unavailable"
           : "Manage and track all maintenance work orders"
         }
       />
-      
+
       <div className="p-4">
         {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -277,52 +342,64 @@ const WorkOrders = () => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">Priority</label>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {priorities.map(priority => (
-                <option key={priority} value={priority}>
-                  {priority === 'all' ? 'All Priorities' : priority.charAt(0).toUpperCase() + priority.slice(1)}
-                </option>
-              ))}
-            </select>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder="All Priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                {priorities.map(priority => (
+                  <SelectItem key={priority} value={priority}>
+                    <div className="flex items-center">
+                      {priority !== 'all' && getPriorityIcon(priority)}
+                      <span>{priority === 'all' ? 'All Priorities' : priority.charAt(0).toUpperCase() + priority.slice(1)}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          
+
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {statuses.map(status => (
-                <option key={status} value={status}>
-                  {status === 'all' ? 'All Statuses' : status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
-                </option>
-              ))}
-            </select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                {statuses.map(status => (
+                  <SelectItem key={status} value={status}>
+                    <div className="flex items-center">
+                      {status !== 'all' && getStatusIcon(status)}
+                      <span>{status === 'all' ? 'All Statuses' : status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          
+
           <div>
             <label className="text-sm font-medium text-slate-700 mb-1 block">Type</label>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {types.map(type => (
-                <option key={type} value={type}>
-                  {type === 'all' ? 'All Types' : type.charAt(0).toUpperCase() + type.slice(1)}
-                </option>
-              ))}
-            </select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-full bg-white">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                {types.map(type => (
+                  <SelectItem key={type} value={type}>
+                    <div className="flex items-center">
+                      {type !== 'all' && getTypeIcon(type)}
+                      <span>{type === 'all' ? 'All Types' : type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          
+
           <div className="flex items-end">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="w-full"
               onClick={() => {
                 setPriorityFilter('all');
@@ -352,13 +429,16 @@ const WorkOrders = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-mono text-sm font-medium text-slate-900">{workOrder.id}</span>
-                      <Badge className={getPriorityColor(workOrder.priority)}>
+                      <Badge className={`${getPriorityColor(workOrder.priority)} flex items-center`}>
+                        {getPriorityIcon(workOrder.priority)}
                         {workOrder.priority}
                       </Badge>
-                      <Badge className={getStatusColor(workOrder.status)}>
+                      <Badge className={`${getStatusColor(workOrder.status)} flex items-center`}>
+                        {getStatusIcon(workOrder.status)}
                         {workOrder.status}
                       </Badge>
-                      <Badge className={getTypeColor(workOrder.type)}>
+                      <Badge className={`${getTypeColor(workOrder.type)} flex items-center`}>
+                        {getTypeIcon(workOrder.type)}
                         {workOrder.type}
                       </Badge>
                     </div>
@@ -376,25 +456,25 @@ const WorkOrders = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex flex-wrap gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleViewDetails(workOrder)}
                   >
                     View Details
                   </Button>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     className="bg-blue-600 hover:bg-blue-700"
                     onClick={() => handleEditWorkOrder(workOrder)}
                   >
                     Edit
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleUpdateProgress(workOrder)}
                   >
                     Update Progress
@@ -409,8 +489,8 @@ const WorkOrders = () => {
           <div className="text-center py-8">
             <Wrench className="w-12 h-12 text-slate-300 mx-auto mb-2" />
             <p className="text-slate-500">No work orders found matching your criteria.</p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="mt-3"
               onClick={() => {
                 setPriorityFilter('all');
@@ -429,7 +509,7 @@ const WorkOrders = () => {
       <WorkOrderModal
         isOpen={showWorkOrderModal}
         onClose={handleCloseWorkOrderModal}
-        onSave={handleSaveWorkOrder}
+        onSubmit={handleSaveWorkOrder}
         workOrder={currentWorkOrder}
         mode={modalMode}
       />

@@ -3,7 +3,7 @@ import Header from '../components/Header';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
-import { 
+import {
   Plus,
   MapPin,
   Building2,
@@ -22,17 +22,17 @@ const Locations = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'map'
-  
+
   const [locations, setLocations] = useState([]);
   const [filteredLocations, setFilteredLocations] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Modal states
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [modalMode, setModalMode] = useState('create');
   const [currentLocation, setCurrentLocation] = useState(null);
-  
+
   const { showSuccess, showError } = useNotification();
 
   // Load locations on component mount
@@ -62,21 +62,21 @@ const Locations = () => {
 
   const applyFilters = () => {
     let result = locations;
-    
+
     // Search term filter
     if (searchTerm) {
-      result = result.filter(loc => 
+      result = result.filter(loc =>
         loc.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loc.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         loc.city?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     // Type filter
     if (typeFilter !== 'all') {
       result = result.filter(loc => loc.type === typeFilter);
     }
-    
+
     setFilteredLocations(result);
   };
 
@@ -101,19 +101,18 @@ const Locations = () => {
     try {
       if (modalMode === 'create') {
         // Create new location
-        const newLocation = await locationsApi.create(locationData);
-        setLocations([...locations, newLocation]);
+        const createdLocation = await locationsApi.create(locationData);
         showSuccess('Location Created', 'New location has been successfully created');
       } else if (modalMode === 'edit') {
         // Update existing location
         const updatedLocation = await locationsApi.update(currentLocation.id, locationData);
-        setLocations(locations.map(loc => 
+        setLocations(locations.map(loc =>
           loc.id === currentLocation.id ? updatedLocation : loc
         ));
         showSuccess('Location Updated', 'Location has been successfully updated');
-        // Immediately refresh locations data from backend
-        await loadLocations();
       }
+      // Immediately refresh locations data from backend
+      await loadLocations();
       setShowFormModal(false);
       setCurrentLocation(null);
     } catch (err) {
@@ -132,6 +131,18 @@ const Locations = () => {
     setCurrentLocation(null);
   };
 
+  const handleDeleteLocation = async (locationId) => {
+    try {
+      await locationsApi.delete(locationId);
+      showSuccess('Location Deleted', 'Location has been successfully deleted');
+      // Immediately refresh locations data from backend
+      await loadLocations();
+    } catch (err) {
+      console.error('Failed to delete location', err);
+      showError('Delete Error', `Failed to delete location: ${err.message}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -145,11 +156,11 @@ const Locations = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header 
-        title="Locations" 
+      <Header
+        title="Locations"
         subtitle="Manage facility locations and their assets"
       />
-      
+
       <div className="p-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -168,15 +179,15 @@ const Locations = () => {
               All Types
             </Button>
           </div>
-          
+
           <div className="flex gap-2">
-            <Button 
+            <Button
               variant={viewMode === 'grid' ? 'default' : 'outline'}
               onClick={() => setViewMode('grid')}
             >
               Grid View
             </Button>
-            <Button 
+            <Button
               variant={viewMode === 'map' ? 'default' : 'outline'}
               onClick={() => setViewMode('map')}
             >
@@ -212,11 +223,11 @@ const Locations = () => {
               <Card key={location.id} className="hover:shadow-lg transition-all duration-200">
                 <CardContent className="p-6">
                   {/* Location Image */}
-                  {location.image ? (
+                  {location.imageUrl ? (
                     <div className="mb-4">
-                      <img 
-                        src={`http://localhost:8000${location.image}`} 
-                        alt={location.name} 
+                      <img
+                        src={`http://localhost:8000${location.imageUrl}`}
+                        alt={location.name}
                         className="w-full h-48 object-cover rounded-lg"
                       />
                     </div>
@@ -225,7 +236,7 @@ const Locations = () => {
                       <Building2 className="w-12 h-12 text-slate-400" />
                     </div>
                   )}
-                  
+
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-start gap-3">
                       <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -290,7 +301,7 @@ const Locations = () => {
                   <Map className="w-16 h-16 text-slate-400 mx-auto mb-4" />
                   <h3 className="text-xl font-bold text-slate-700 mb-2">Factory Roadmap</h3>
                   <p className="text-slate-600 max-w-md mx-auto">
-                    Interactive map view showing all locations with their details. 
+                    Interactive map view showing all locations with their details.
                     Click on location markers to view information and manage assets.
                   </p>
                   <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -302,9 +313,9 @@ const Locations = () => {
                             <h4 className="font-medium text-slate-900">{location.name}</h4>
                           </div>
                           <p className="text-sm text-slate-600 mt-1">{location.type}</p>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="mt-2 w-full"
                             onClick={() => handleViewDetails(location)}
                           >
@@ -324,8 +335,8 @@ const Locations = () => {
           <div className="text-center py-12">
             <Building2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p className="text-slate-500">No locations found matching your criteria.</p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="mt-4"
               onClick={() => {
                 setSearchTerm('');
@@ -337,7 +348,7 @@ const Locations = () => {
           </div>
         )}
       </div>
-      
+
       <LocationFormModal
         isOpen={showFormModal}
         onClose={handleCloseFormModal}
@@ -345,7 +356,7 @@ const Locations = () => {
         location={currentLocation}
         mode={modalMode}
       />
-      
+
       <LocationDetailView
         isOpen={showDetailModal}
         onClose={handleCloseDetailModal}
@@ -353,7 +364,7 @@ const Locations = () => {
         onEdit={handleEditLocation}
         onLocationUpdated={(updatedLocation) => {
           // Update the locations list with the new data
-          setLocations(locations.map(loc => 
+          setLocations(locations.map(loc =>
             loc.id === updatedLocation.id ? updatedLocation : loc
           ));
           // Also update the current location

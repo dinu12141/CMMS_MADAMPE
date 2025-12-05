@@ -5,10 +5,8 @@ import os
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from bson import ObjectId
-
 from models import UserCreate, UserInDB, User
-from database import get_database, generate_unique_number, add_timestamps
+from database import get_database, generate_unique_number, add_timestamps, doc_with_id
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -41,13 +39,15 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-async def get_user(db, username: str):
-    user = await db.users.find_one({"username": username})
-    if user:
-        return UserInDB(**user)
+def get_user(db, username: str):
+    users = db.collection("users").where("username", "==", username).limit(1).stream()
+    for user_doc in users:
+        user_data = doc_with_id(user_doc)
+        if user_data:
+            return UserInDB(**user_data)
 
-async def authenticate_user(db, username: str, password: str):
-    user = await get_user(db, username)
+def authenticate_user(db, username: str, password: str):
+    user = get_user(db, username)
     if not user:
         return False
     if not verify_password(password, user.hashed_password):
@@ -55,19 +55,19 @@ async def authenticate_user(db, username: str, password: str):
     return user
 
 @router.post("/register", response_model=User)
-async def register_user(user: UserCreate):
-    db = await get_database()
-    
-    # Check if user already exists
-    existing_user = await db.users.find_one({"username": user.username})
+def register_user(user: UserCreate):
+    db = get_database()
+
+    users_collection = db.collection("users")
+
+    existing_user = list(users_collection.where("username", "==", user.username).limit(1).stream())
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
     
-    # Check if email already exists
-    existing_email = await db.users.find_one({"email": user.email})
+    existing_email = list(users_collection.where("email", "==", user.email).limit(1).stream())
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -85,9 +85,8 @@ async def register_user(user: UserCreate):
     hashed_password = get_password_hash(user.password)
     
     # Generate user ID
-    user_id = await generate_unique_number("users", "USER")
+    user_id = generate_unique_number("users", "USER")
     
-    # Create user document
     user_dict = {
         "userId": user_id,
         "username": user.username,
@@ -99,18 +98,18 @@ async def register_user(user: UserCreate):
         "active": True
     }
     user_dict = add_timestamps(user_dict)
-    
-    # Insert into database
-    result = await db.users.insert_one(user_dict)
-    user_dict["_id"] = str(result.inserted_id)
-    
-    # Return user without password
+
+    doc_ref = users_collection.document()
+    user_dict["_id"] = doc_ref.id
+    user_dict["id"] = doc_ref.id
+    doc_ref.set(user_dict)
+
     return User(**{k: v for k, v in user_dict.items() if k != "hashed_password"})
 
 @router.post("/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
-    db = await get_database()
-    user = await authenticate_user(db, form_data.username, form_data.password)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    db = get_database()
+    user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -131,7 +130,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {"access_token": access_token, "token_type": "bearer"}
 
 # Dependency to get current user
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -144,13 +143,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    db = await get_database()
-    user = await get_user(db, username=username)
+    db = get_database()
+    user = get_user(db, username=username)
     if user is None:
         raise credentials_exception
     return user
 
-async def get_current_active_user(current_user: UserInDB = Depends(get_current_user)):
+def get_current_active_user(current_user: UserInDB = Depends(get_current_user)):
     if not current_user.active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user

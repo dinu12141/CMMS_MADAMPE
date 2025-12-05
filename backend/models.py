@@ -1,40 +1,23 @@
-from pydantic import BaseModel, Field, validator
-from typing import Optional, List, Dict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date
-from bson import ObjectId
-
-# Custom ObjectId type for Pydantic
-class PyObjectId(ObjectId):
-    @classmethod
-    def __get_pydantic_core_schema__(cls, _source_type, _handler):
-        from pydantic_core import core_schema
-        return core_schema.with_info_plain_validator_function(cls.validate)
-
-    @classmethod
-    def validate(cls, v, _info):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid objectid")
-        return ObjectId(v)
-
-    @classmethod
-    def __get_pydantic_json_schema__(cls, _core_schema, _handler):
-        return {'type': 'string'}
 
 
 # Work Order Models
 class WorkOrderCreate(BaseModel):
     title: str
-    description: str
+    description: Optional[str] = ""
     assetId: Optional[str] = None
     priority: str  # critical, high, medium, low
     type: str  # preventive, corrective
     assignedTo: Optional[str] = None
     dueDate: datetime
-    estimatedTime: float
-    location: str
-    cost: float = 0
+    estimatedTime: Optional[float] = 0
+    location: Optional[str] = ""
+    cost: Optional[float] = 0
     partsUsed: List[str] = []
     notes: Optional[str] = ""
+
 
 class WorkOrderUpdate(BaseModel):
     title: Optional[str] = None
@@ -52,8 +35,17 @@ class WorkOrderUpdate(BaseModel):
     partsUsed: Optional[List[str]] = None
     notes: Optional[str] = None
 
+
+class WorkOrderProgressUpdate(BaseModel):
+    status: Optional[str] = None
+    actualTime: Optional[float] = None
+    notes: Optional[str] = None
+
+
 class WorkOrder(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     workOrderNumber: str
     title: str
     description: str
@@ -74,10 +66,6 @@ class WorkOrder(BaseModel):
     notes: str = ""
     updatedAt: datetime
 
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
-
 
 # Asset Models
 class AssetCreate(BaseModel):
@@ -95,14 +83,16 @@ class AssetCreate(BaseModel):
     specifications: Optional[Dict] = None
     imageUrl: Optional[str] = None
 
-    @validator('purchaseDate', 'installDate', 'warrantyExpiry', pre=True)
+    @field_validator("purchaseDate", "installDate", "warrantyExpiry", mode="before")
+    @classmethod
     def parse_date(cls, v):
         if isinstance(v, str):
             try:
                 return date.fromisoformat(v)
             except ValueError:
-                raise ValueError('Invalid date format. Expected YYYY-MM-DD')
+                raise ValueError("Invalid date format. Expected YYYY-MM-DD")
         return v
+
 
 class AssetUpdate(BaseModel):
     assetNumber: Optional[str] = None
@@ -125,8 +115,11 @@ class AssetUpdate(BaseModel):
     specifications: Optional[Dict] = None
     imageUrl: Optional[str] = None
 
+
 class Asset(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     assetNumber: str
     name: str
     category: str = ""
@@ -149,10 +142,6 @@ class Asset(BaseModel):
     createdAt: datetime
     updatedAt: datetime
 
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
-
 
 # Preventive Maintenance Models
 class PreventiveMaintenanceCreate(BaseModel):
@@ -165,6 +154,7 @@ class PreventiveMaintenanceCreate(BaseModel):
     priority: str
     tasks: List[str] = []
     partsRequired: List[str] = []
+
 
 class PreventiveMaintenanceUpdate(BaseModel):
     name: Optional[str] = None
@@ -179,8 +169,11 @@ class PreventiveMaintenanceUpdate(BaseModel):
     partsRequired: Optional[List[str]] = None
     active: Optional[bool] = None
 
+
 class PreventiveMaintenance(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     pmNumber: str
     name: str
     assetId: str
@@ -195,10 +188,6 @@ class PreventiveMaintenance(BaseModel):
     active: bool = True
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
 
 
 # Inventory Models
@@ -215,6 +204,7 @@ class InventoryItemCreate(BaseModel):
     location: str
     supplier: str
 
+
 class InventoryItemUpdate(BaseModel):
     partNumber: Optional[str] = None
     name: Optional[str] = None
@@ -229,8 +219,11 @@ class InventoryItemUpdate(BaseModel):
     supplier: Optional[str] = None
     lastOrdered: Optional[date] = None
 
+
 class InventoryItem(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     partNumber: str
     name: str
     category: str
@@ -247,10 +240,6 @@ class InventoryItem(BaseModel):
     createdAt: datetime
     updatedAt: datetime
 
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
-
 
 # Service Request Models
 class ServiceRequestCreate(BaseModel):
@@ -263,6 +252,7 @@ class ServiceRequestCreate(BaseModel):
     category: str
     relatedAsset: Optional[str] = None
 
+
 class ServiceRequestUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -273,8 +263,11 @@ class ServiceRequestUpdate(BaseModel):
     convertedToWO: Optional[str] = None
     closedDate: Optional[datetime] = None
 
+
 class ServiceRequest(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     requestNumber: str
     title: str
     description: str
@@ -290,11 +283,7 @@ class ServiceRequest(BaseModel):
     createdDate: datetime
     closedDate: Optional[datetime] = None
     updatedAt: datetime
-
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
-
+    attachments: Optional[List[Dict[str, Any]]] = []
 
 # Location Models
 class LocationCreate(BaseModel):
@@ -307,7 +296,8 @@ class LocationCreate(BaseModel):
     coordinates: Dict[str, float] = {"lat": 0.0, "lng": 0.0}
     size: int = 0
     floors: int = 0
-    image: Optional[str] = None
+    imageUrl: Optional[str] = None
+
 
 class LocationUpdate(BaseModel):
     name: Optional[str] = None
@@ -319,10 +309,13 @@ class LocationUpdate(BaseModel):
     coordinates: Optional[Dict[str, float]] = None
     size: Optional[int] = None
     floors: Optional[int] = None
-    image: Optional[str] = None
+    imageUrl: Optional[str] = None
+
 
 class Location(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     locationId: str
     name: str
     type: str
@@ -333,15 +326,11 @@ class Location(BaseModel):
     coordinates: Dict[str, float] = {"lat": 0.0, "lng": 0.0}
     size: int = 0
     floors: int = 0
-    image: Optional[str] = None
+    imageUrl: Optional[str] = None
     assetCount: Optional[int] = 0
     activeWOs: Optional[int] = 0
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
 
 
 # User Models
@@ -353,6 +342,7 @@ class UserCreate(BaseModel):
     department: str
     phone: str
 
+
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
@@ -361,8 +351,11 @@ class UserUpdate(BaseModel):
     phone: Optional[str] = None
     active: Optional[bool] = None
 
+
 class UserInDB(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     username: str
     email: str
     hashed_password: str
@@ -373,8 +366,11 @@ class UserInDB(BaseModel):
     createdAt: datetime
     updatedAt: datetime
 
+
 class User(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     username: str
     email: str
     role: str
@@ -383,10 +379,6 @@ class User(BaseModel):
     active: bool = True
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True
 
 
 # Document Models
@@ -399,6 +391,7 @@ class DocumentCreate(BaseModel):
     expiryDate: Optional[datetime] = None
     tags: List[str] = []
 
+
 class DocumentUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
@@ -408,8 +401,11 @@ class DocumentUpdate(BaseModel):
     expiryDate: Optional[datetime] = None
     tags: Optional[List[str]] = None
 
+
 class Document(BaseModel):
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = Field(alias="_id", default=None)
     documentNumber: str
     name: str
     description: str
@@ -426,7 +422,3 @@ class Document(BaseModel):
     tags: List[str] = []
     createdAt: datetime
     updatedAt: datetime
-
-    class Config:
-        json_encoders = {ObjectId: str}
-        populate_by_name = True

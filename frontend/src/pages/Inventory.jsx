@@ -4,8 +4,8 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
-import { 
-  Plus, 
+import {
+  Plus,
   Filter,
   Package,
   AlertTriangle,
@@ -24,12 +24,12 @@ const Inventory = () => {
   const [filteredInventory, setFilteredInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const [showFormModal, setShowFormModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [currentItem, setCurrentItem] = useState(null);
   const [modalMode, setModalMode] = useState('create');
-  
+
   const { showSuccess, showError } = useNotification();
 
   // Load inventory on component mount
@@ -71,7 +71,7 @@ const Inventory = () => {
         showSuccess('Inventory Loaded', `Successfully loaded ${data.length} inventory items`);
       } catch (apiError) {
         console.error('Failed to load inventory from API, using mock data', apiError);
-        
+
         // Retry mechanism - try up to 3 times with exponential backoff
         if (retryCount < 3) {
           const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
@@ -79,7 +79,7 @@ const Inventory = () => {
           setTimeout(() => loadInventory(retryCount + 1), delay);
           return;
         }
-        
+
         // Use mock data as fallback after retries
         const mockData = [
           {
@@ -177,22 +177,22 @@ const Inventory = () => {
 
   const applyFilters = () => {
     let result = inventoryData;
-    
+
     // Search term filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(item => 
+      result = result.filter(item =>
         item.name.toLowerCase().includes(term) ||
         item.partNumber.toLowerCase().includes(term) ||
         item.category.toLowerCase().includes(term)
       );
     }
-    
+
     // Status filter
     if (statusFilter !== 'all') {
       result = result.filter(item => item.status === statusFilter);
     }
-    
+
     setFilteredInventory(result);
   };
 
@@ -244,8 +244,8 @@ const Inventory = () => {
           const newItem = {
             _id: `INV-${inventoryData.length + 1}`,
             ...itemData,
-            status: itemData.quantity <= itemData.minStock ? 'low-stock' : 
-                    itemData.quantity <= itemData.minStock * 0.5 ? 'critical' : 'in-stock'
+            status: itemData.quantity <= itemData.minStock ? 'low-stock' :
+              itemData.quantity <= itemData.minStock * 0.5 ? 'critical' : 'in-stock'
           };
           setInventoryData([...inventoryData, newItem]);
           showSuccess('Item Created (Local)', 'Item saved locally. Start the backend to sync with database.');
@@ -254,7 +254,7 @@ const Inventory = () => {
         // Try to update via API first, fallback to local state if API fails
         try {
           const updatedItem = await inventoryApi.update(currentItem._id, itemData);
-          setInventoryData(inventoryData.map(item => 
+          setInventoryData(inventoryData.map(item =>
             item._id === currentItem._id ? updatedItem : item
           ));
           showSuccess('Item Updated', 'Inventory item has been successfully updated');
@@ -264,10 +264,10 @@ const Inventory = () => {
           const updatedItem = {
             ...currentItem,
             ...itemData,
-            status: itemData.quantity <= itemData.minStock ? 'low-stock' : 
-                    itemData.quantity <= itemData.minStock * 0.5 ? 'critical' : 'in-stock'
+            status: itemData.quantity <= itemData.minStock ? 'low-stock' :
+              itemData.quantity <= itemData.minStock * 0.5 ? 'critical' : 'in-stock'
           };
-          setInventoryData(inventoryData.map(item => 
+          setInventoryData(inventoryData.map(item =>
             item._id === currentItem._id ? updatedItem : item
           ));
           showSuccess('Item Updated (Local)', 'Item updated locally. Start the backend to sync with database.');
@@ -326,11 +326,11 @@ const Inventory = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header 
-        title="Inventory Management" 
+      <Header
+        title="Inventory Management"
         subtitle="Track parts, supplies, and stock levels"
       />
-      
+
       <div className="p-8">
         {/* Actions Bar */}
         <div className="flex items-center justify-between mb-6">
@@ -378,7 +378,7 @@ const Inventory = () => {
           {filteredInventory.map((item) => {
             const statusInfo = getStatusInfo(item);
             const stockPercentage = (item.quantity / item.maxStock) * 100;
-            
+
             return (
               <Card key={item._id} className="hover:shadow-lg transition-all duration-200">
                 <CardContent className="p-6">
@@ -410,11 +410,10 @@ const Inventory = () => {
                         </span>
                       </div>
                       <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full transition-all duration-300 ${
-                            stockPercentage < 30 ? 'bg-red-500' :
-                            stockPercentage < 50 ? 'bg-orange-500' : 'bg-green-500'
-                          }`}
+                        <div
+                          className={`h-full transition-all duration-300 ${stockPercentage < 30 ? 'bg-red-500' :
+                              stockPercentage < 50 ? 'bg-orange-500' : 'bg-green-500'
+                            }`}
                           style={{ width: `${stockPercentage}%` }}
                         ></div>
                       </div>
@@ -463,8 +462,8 @@ const Inventory = () => {
           <div className="text-center py-12">
             <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
             <p className="text-slate-500">No inventory items found matching your criteria.</p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="mt-4"
               onClick={() => {
                 setSearchTerm('');
@@ -476,7 +475,7 @@ const Inventory = () => {
           </div>
         )}
       </div>
-      
+
       {/* Modals */}
       <InventoryFormModal
         isOpen={showFormModal}
@@ -485,7 +484,7 @@ const Inventory = () => {
         item={currentItem}
         mode={modalMode}
       />
-      
+
       <InventoryDetailModal
         isOpen={showDetailModal}
         onClose={handleCloseDetailModal}

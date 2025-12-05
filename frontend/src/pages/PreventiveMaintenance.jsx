@@ -4,8 +4,8 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Input } from '../components/ui/input';
-import { 
-  Plus, 
+import {
+  Plus,
   Calendar,
   List,
   Download,
@@ -17,6 +17,8 @@ import {
   Search
 } from 'lucide-react';
 import { preventiveMaintenance, assets, users } from '../mockData';
+import { pmApi } from '../services/api';
+import { useNotification } from '../hooks/useNotification';
 import PMCalendarView from '../components/PMCalendarView';
 import PMListView from '../components/PMListView';
 import PMScheduleModal from '../components/PMScheduleModal';
@@ -29,20 +31,21 @@ const PreventiveMaintenance = () => {
   const [frequencyFilter, setFrequencyFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  
+
   const [pms, setPms] = useState([]);
   const [filteredPms, setFilteredPms] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showDetailViewModal, setShowDetailViewModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [selectedPM, setSelectedPM] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  
+
   const frequencies = ['all', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'];
   const priorities = ['all', 'low', 'medium', 'high', 'critical'];
   const statuses = ['all', 'active', 'inactive'];
+  const { showSuccess, showError } = useNotification();
 
   // Load PMs on component mount
   useEffect(() => {
@@ -70,33 +73,33 @@ const PreventiveMaintenance = () => {
 
   const applyFilters = () => {
     let result = pms;
-    
+
     // Search term filter
     if (searchTerm) {
-      result = result.filter(pm => 
+      result = result.filter(pm =>
         pm.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pm.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pm.assignedTo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pm.id.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     // Frequency filter
     if (frequencyFilter !== 'all') {
       result = result.filter(pm => pm.frequency === frequencyFilter);
     }
-    
+
     // Priority filter
     if (priorityFilter !== 'all') {
       result = result.filter(pm => pm.priority === priorityFilter);
     }
-    
+
     // Status filter
     if (statusFilter !== 'all') {
       const isActive = statusFilter === 'active';
       result = result.filter(pm => pm.active === isActive);
     }
-    
+
     setFilteredPms(result);
   };
 
@@ -134,9 +137,14 @@ const PreventiveMaintenance = () => {
     setShowDetailViewModal(true);
   };
 
-  const handleGenerateWO = (pm) => {
-    // In a real app, this would generate a work order
-    alert(`Work order would be generated for PM: ${pm.name}`);
+  const handleGenerateWO = async (pm) => {
+    try {
+      await pmApi.generateWorkOrder(pm.id || pm._id);
+      showSuccess('Work Order Created', `Generated from PM schedule ${pm.name}`);
+    } catch (err) {
+      console.error('Failed to generate work order from PM', err);
+      showError('Generation Failed', err.message || 'Could not generate work order. Please try again.');
+    }
   };
 
   const handleNewSchedule = () => {
@@ -157,8 +165,8 @@ const PreventiveMaintenance = () => {
         // In a real app, this would update via the API
         // await pmApi.update(selectedPM.id, pmData);
         // For now, we'll just update locally
-        setPms(pms.map(pm => 
-          pm.id === selectedPM.id ? {...pm, ...pmData} : pm
+        setPms(pms.map(pm =>
+          pm.id === selectedPM.id ? { ...pm, ...pmData } : pm
         ));
       } else {
         // In a real app, this would create via the API
@@ -190,11 +198,11 @@ const PreventiveMaintenance = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header 
-        title="Preventive Maintenance" 
+      <Header
+        title="Preventive Maintenance"
         subtitle="Schedule and manage preventive maintenance tasks"
       />
-      
+
       <div className="p-6">
         {/* Actions Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
@@ -214,10 +222,10 @@ const PreventiveMaintenance = () => {
               Filters
             </Button>
           </div>
-          
+
           <div className="flex flex-wrap gap-2">
             <div className="flex rounded-md overflow-hidden border border-slate-300">
-              <Button 
+              <Button
                 variant={viewMode === 'calendar' ? 'default' : 'outline'}
                 className="rounded-none border-0"
                 onClick={() => setViewMode('calendar')}
@@ -225,7 +233,7 @@ const PreventiveMaintenance = () => {
                 <Calendar className="w-4 h-4 mr-2" />
                 Calendar
               </Button>
-              <Button 
+              <Button
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 className="rounded-none border-0 border-l border-slate-300"
                 onClick={() => setViewMode('list')}
@@ -234,16 +242,16 @@ const PreventiveMaintenance = () => {
                 List
               </Button>
             </div>
-            
-            <Button 
+
+            <Button
               variant="outline"
               onClick={() => setShowExportModal(true)}
             >
               <Download className="w-4 h-4 mr-2" />
               Export
             </Button>
-            
-            <Button 
+
+            <Button
               className="bg-blue-600 hover:bg-blue-700"
               onClick={handleNewSchedule}
             >
@@ -270,7 +278,7 @@ const PreventiveMaintenance = () => {
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">Priority</label>
               <select
@@ -285,7 +293,7 @@ const PreventiveMaintenance = () => {
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="text-sm font-medium text-slate-700 mb-1 block">Status</label>
               <select
@@ -301,10 +309,10 @@ const PreventiveMaintenance = () => {
               </select>
             </div>
           </div>
-          
+
           <div className="flex justify-end mt-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setFrequencyFilter('all');
                 setPriorityFilter('all');
@@ -326,13 +334,13 @@ const PreventiveMaintenance = () => {
 
         {/* View Content */}
         {viewMode === 'calendar' ? (
-          <PMCalendarView 
+          <PMCalendarView
             preventiveMaintenance={filteredPms}
             onViewDetails={handleViewDetails}
             onGenerateWO={handleGenerateWO}
           />
         ) : (
-          <PMListView 
+          <PMListView
             preventiveMaintenance={filteredPms}
             onViewDetails={handleViewDetails}
             onGenerateWO={handleGenerateWO}
@@ -347,13 +355,13 @@ const PreventiveMaintenance = () => {
         onSubmit={handleSaveSchedule}
         pm={selectedPM}
       />
-      
+
       <PMDetailViewModal
         isOpen={showDetailViewModal}
         onClose={() => setShowDetailViewModal(false)}
         pm={selectedPM}
       />
-      
+
       <PMExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}

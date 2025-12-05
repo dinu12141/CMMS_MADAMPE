@@ -17,7 +17,8 @@ const ServiceRequestModal = ({ isOpen, onClose, onSubmit, serviceRequest = null,
     category: 'General',
     relatedAsset: ''
   });
-
+  
+  const [selectedFile, setSelectedFile] = useState(null);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -77,6 +78,10 @@ const ServiceRequestModal = ({ isOpen, onClose, onSubmit, serviceRequest = null,
     }
   };
 
+  const handleFileChange = (e) => {
+    setSelectedFile(e.target.files[0]);
+  };
+
   const validateForm = () => {
     const newErrors = {};
     
@@ -104,16 +109,20 @@ const ServiceRequestModal = ({ isOpen, onClose, onSubmit, serviceRequest = null,
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (validateForm()) {
-      onSubmit(formData);
+      const result = await onSubmit(formData, selectedFile);
+      if (result !== false) {
+        setSelectedFile(null);
+      }
     }
   };
 
   const handleClose = () => {
     setErrors({});
+    setSelectedFile(null);
     onClose();
   };
 
@@ -240,6 +249,21 @@ const ServiceRequestModal = ({ isOpen, onClose, onSubmit, serviceRequest = null,
                 className={errors.description ? 'border-red-500' : ''}
               />
               {errors.description && <p className="text-red-500 text-sm">{errors.description}</p>}
+            </div>
+            
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="file">Attach File</Label>
+              <Input
+                id="file"
+                type="file"
+                onChange={handleFileChange}
+                accept="*/*"
+              />
+              {selectedFile && (
+                <p className="text-sm text-gray-500 mt-1">
+                  Selected: {selectedFile.name}
+                </p>
+              )}
             </div>
           </div>
           

@@ -113,16 +113,40 @@ const ServiceRequests = () => {
     setShowModal(true);
   };
 
-  const handleSaveRequest = async (requestData) => {
+  const handleSaveRequest = async (requestData, selectedFile) => {
     try {
       if (modalMode === 'create') {
         // Create new service request
         const newRequest = await serviceRequestsApi.create(requestData);
+        
+        // If a file was selected, upload it
+        if (selectedFile) {
+          try {
+            await serviceRequestsApi.uploadFile(newRequest.id, selectedFile);
+            showSuccess('File Uploaded', 'Attachment has been uploaded successfully');
+          } catch (fileError) {
+            console.error('Failed to upload file', fileError);
+            showError('File Upload Error', `Failed to upload file: ${fileError.message}`);
+          }
+        }
+        
         setServiceRequests([...serviceRequests, newRequest]);
         showSuccess('Service Request Created', 'New service request has been successfully created');
       } else if (modalMode === 'edit') {
         // Update existing service request
         const updatedRequest = await serviceRequestsApi.update(currentRequest.id, requestData);
+        
+        // If a file was selected, upload it
+        if (selectedFile) {
+          try {
+            await serviceRequestsApi.uploadFile(currentRequest.id, selectedFile);
+            showSuccess('File Uploaded', 'Attachment has been uploaded successfully');
+          } catch (fileError) {
+            console.error('Failed to upload file', fileError);
+            showError('File Upload Error', `Failed to upload file: ${fileError.message}`);
+          }
+        }
+        
         setServiceRequests(serviceRequests.map(req => 
           req.id === currentRequest.id ? updatedRequest : req
         ));
@@ -133,6 +157,7 @@ const ServiceRequests = () => {
     } catch (err) {
       console.error('Failed to save service request', err);
       showError('Save Error', `Failed to save service request: ${err.message}`);
+      return false; // Prevent modal from closing
     }
   };
 

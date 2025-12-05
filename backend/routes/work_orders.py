@@ -1,40 +1,28 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
-from datetime import datetime
-from bson import ObjectId
-from motor.motor_asyncio import AsyncIOMotorDatabase
-
-from models import WorkOrder, WorkOrderCreate, WorkOrderUpdate
-from database import get_database, generate_unique_number, add_timestamps
+from datetime import datetime, date
+from models import WorkOrder, WorkOrderCreate, WorkOrderUpdate, WorkOrderProgressUpdate
+from database import get_database, generate_unique_number, add_timestamps, doc_with_id
 
 router = APIRouter(prefix="/work-orders", tags=["Work Orders"])
 
-# Helper function to add asset name to work orders using aggregation
-async def add_asset_names_to_work_orders(db: AsyncIOMotorDatabase, work_orders: List[dict]):
-    """Add asset names to work orders using MongoDB aggregation lookup"""
-    # Create a mapping of asset IDs to work orders for quick lookup
-    work_order_map = {wo["_id"]: wo for wo in work_orders}
-    
-    # Get unique asset IDs from work orders
-    asset_ids = list(set(str(wo["assetId"]) for wo in work_orders if "assetId" in wo and wo["assetId"]))
-    
-    if asset_ids:
-        # Fetch assets with those IDs
-        asset_cursor = db.assets.find({"_id": {"$in": [ObjectId(asset_id) for asset_id in asset_ids]}})
-        assets = await asset_cursor.to_list(length=len(asset_ids))
-        
-        # Create asset ID to name mapping
-        asset_name_map = {str(asset["_id"]): asset["name"] for asset in assets}
-        
-        # Add asset names to work orders
-        for wo in work_orders:
-            if "assetId" in wo and wo["assetId"] in asset_name_map:
-                wo["assetName"] = asset_name_map[wo["assetId"]]
-    
+# Helper function to add asset name to work orders using Firestore lookups
+def add_asset_names_to_work_orders(db, work_orders: List[dict]):
+    asset_ids = {wo.get("assetId") for wo in work_orders if wo.get("assetId")}
+    asset_name_map = {}
+    for asset_id in asset_ids:
+        doc = db.collection("assets").document(asset_id).get()
+        if doc.exists:
+            asset_name_map[asset_id] = doc.to_dict().get("name")
+
+    for wo in work_orders:
+        asset_id = wo.get("assetId")
+        if asset_id and asset_id in asset_name_map:
+            wo["assetName"] = asset_name_map[asset_id]
     return work_orders
 
 @router.get("", response_model=List[WorkOrder])
-async def list_work_orders(
+def list_work_orders(
     status: Optional[str] = None,
     priority: Optional[str] = None,
     assignedTo: Optional[str] = None,
@@ -42,131 +30,157 @@ async def list_work_orders(
     limit: Optional[int] = Query(100, le=1000),
     skip: Optional[int] = 0
 ):
-    db = await get_database()
-    
-    # Build filter
-    filter_dict = {}
+    db = get_database()
+
+    query = db.collection("work_orders")
     if status:
-        filter_dict["status"] = status
+        query = query.where("status", "==", status)
     if priority:
-        filter_dict["priority"] = priority
+        query = query.where("priority", "==", priority)
     if assignedTo:
-        filter_dict["assignedTo"] = assignedTo
+        query = query.where("assignedTo", "==", assignedTo)
     if assetId:
-        filter_dict["assetId"] = assetId
-    
-    # Query database
-    cursor = db.work_orders.find(filter_dict).skip(skip).limit(limit).sort("createdDate", -1)
-    work_orders = await cursor.to_list(length=limit)
-    
-    # Add asset names to work orders
-    work_orders = await add_asset_names_to_work_orders(db, work_orders)
-    
-    # Convert _id to string
-    for wo in work_orders:
-        wo["_id"] = str(wo["_id"])
-    
+        query = query.where("assetId", "==", assetId)
+
+    documents = list(query.stream())
+    documents.sort(
+        key=lambda doc: (doc.to_dict() or {}).get("createdDate") or datetime.min,
+        reverse=True,
+    )
+    if skip:
+        documents = documents[skip:]
+    if limit:
+        documents = documents[:limit]
+
+    work_orders = []
+    for doc in documents:
+        wo = doc_with_id(doc)
+        if wo:
+            work_orders.append(wo)
+
+    work_orders = add_asset_names_to_work_orders(db, work_orders)
     return work_orders
 
 @router.get("/{work_order_id}", response_model=WorkOrder)
-async def get_work_order(work_order_id: str):
-    db = await get_database()
-    
-    if not ObjectId.is_valid(work_order_id):
-        raise HTTPException(status_code=400, detail="Invalid work order ID")
-    
-    wo = await db.work_orders.find_one({"_id": ObjectId(work_order_id)})
-    
+def get_work_order(work_order_id: str):
+    db = get_database()
+
+    doc = db.collection("work_orders").document(work_order_id).get()
+    wo = doc_with_id(doc)
+
     if not wo:
         raise HTTPException(status_code=404, detail="Work order not found")
-    
-    # Add asset name to work order
-    work_orders = await add_asset_names_to_work_orders(db, [wo])
-    wo = work_orders[0]
-    
-    wo["_id"] = str(wo["_id"])
-    return wo
+
+    wo_with_asset = add_asset_names_to_work_orders(db, [wo])[0]
+    return wo_with_asset
 
 @router.post("", response_model=WorkOrder)
-async def create_work_order(work_order: WorkOrderCreate):
-    db = await get_database()
-    
-    # Generate unique work order number
-    wo_number = await generate_unique_number("work_orders", "WO")
-    
-    # Create work order document
+def create_work_order(work_order: WorkOrderCreate):
+    db = get_database()
+
+    wo_number = generate_unique_number("work_orders", "WO")
+
     wo_dict = work_order.dict()
     wo_dict["workOrderNumber"] = wo_number
     wo_dict["status"] = "open"
-    wo_dict["createdBy"] = "System"  # TODO: Get from auth
+    wo_dict["createdBy"] = "System"
     wo_dict["createdDate"] = datetime.utcnow()
     wo_dict = add_timestamps(wo_dict)
-    
-    # Insert into database
-    result = await db.work_orders.insert_one(wo_dict)
-    wo_dict["_id"] = str(result.inserted_id)
-    
+
+    doc_ref = db.collection("work_orders").document()
+    wo_dict["_id"] = doc_ref.id
+    wo_dict["id"] = doc_ref.id
+    doc_ref.set(wo_dict)
+
     return wo_dict
 
 @router.put("/{work_order_id}", response_model=WorkOrder)
-async def update_work_order(work_order_id: str, work_order: WorkOrderUpdate):
-    db = await get_database()
-    
-    if not ObjectId.is_valid(work_order_id):
-        raise HTTPException(status_code=400, detail="Invalid work order ID")
-    
-    # Build update dict (exclude None values)
-    update_dict = {k: v for k, v in work_order.dict().items() if v is not None}
-    
+def update_work_order(work_order_id: str, work_order: WorkOrderUpdate):
+    db = get_database()
+
+    wo_ref = db.collection("work_orders").document(work_order_id)
+    if not wo_ref.get().exists:
+        raise HTTPException(status_code=404, detail="Work order not found")
+
+    update_dict = {k: v for k, v in work_order.dict(exclude_unset=True).items() if v is not None}
+
     if not update_dict:
         raise HTTPException(status_code=400, detail="No fields to update")
-    
+
     update_dict = add_timestamps(update_dict, is_update=True)
-    
-    # Update database
-    result = await db.work_orders.find_one_and_update(
-        {"_id": ObjectId(work_order_id)},
-        {"$set": update_dict},
-        return_document=True
-    )
-    
-    if not result:
-        raise HTTPException(status_code=404, detail="Work order not found")
-    
-    result["_id"] = str(result["_id"])
-    return result
+    wo_ref.update(update_dict)
+
+    updated = doc_with_id(wo_ref.get())
+    return updated
 
 @router.delete("/{work_order_id}")
-async def delete_work_order(work_order_id: str):
-    db = await get_database()
-    
-    if not ObjectId.is_valid(work_order_id):
-        raise HTTPException(status_code=400, detail="Invalid work order ID")
-    
-    result = await db.work_orders.delete_one({"_id": ObjectId(work_order_id)})
-    
-    if result.deleted_count == 0:
+def delete_work_order(work_order_id: str):
+    db = get_database()
+
+    wo_ref = db.collection("work_orders").document(work_order_id)
+    if not wo_ref.get().exists:
         raise HTTPException(status_code=404, detail="Work order not found")
-    
+
+    wo_ref.delete()
     return {"message": "Work order deleted successfully"}
 
+@router.post("/{work_order_id}/progress", response_model=WorkOrder)
+def update_work_order_progress(work_order_id: str, progress: WorkOrderProgressUpdate):
+    db = get_database()
+
+    wo_ref = db.collection("work_orders").document(work_order_id)
+    if not wo_ref.get().exists:
+        raise HTTPException(status_code=404, detail="Work order not found")
+
+    update_dict = progress.dict(exclude_unset=True)
+    if not update_dict:
+        raise HTTPException(status_code=400, detail="No progress fields provided")
+
+    if update_dict.get("status") == "completed":
+        update_dict.setdefault("completedDate", datetime.utcnow())
+
+    if "actualTime" in update_dict and update_dict["actualTime"] is not None:
+        update_dict["actualTime"] = float(update_dict["actualTime"])
+
+    update_dict = add_timestamps(update_dict, is_update=True)
+    wo_ref.update(update_dict)
+
+    updated = doc_with_id(wo_ref.get())
+    return updated
+
+
 @router.get("/stats/summary")
-async def get_work_order_stats():
-    db = await get_database()
-    
-    # Aggregate statistics
-    total = await db.work_orders.count_documents({})
-    open_count = await db.work_orders.count_documents({"status": "open"})
-    in_progress = await db.work_orders.count_documents({"status": "in-progress"})
-    completed = await db.work_orders.count_documents({"status": "completed"})
-    
-    # Count overdue
+def get_work_order_stats():
+    db = get_database()
+
+    snapshots = list(db.collection("work_orders").stream())
     now = datetime.utcnow()
-    overdue = await db.work_orders.count_documents({
-        "status": {"$in": ["open", "in-progress"]},
-        "dueDate": {"$lt": now}
-    })
-    
+    total = len(snapshots)
+    open_count = 0
+    in_progress = 0
+    completed = 0
+    overdue = 0
+
+    for snap in snapshots:
+        data = snap.to_dict() or {}
+        status = data.get("status")
+        due_date = data.get("dueDate")
+
+        if status == "open":
+            open_count += 1
+        if status == "in-progress":
+            in_progress += 1
+        if status == "completed":
+            completed += 1
+
+        # Handle both datetime and date objects for due_date comparison
+        if status in {"open", "in-progress"} and due_date is not None:
+            # Convert date to datetime for comparison if needed
+            if isinstance(due_date, date) and not isinstance(due_date, datetime):
+                due_date = datetime.combine(due_date, datetime.min.time())
+            if isinstance(due_date, datetime) and due_date < now:
+                overdue += 1
+
     return {
         "total": total,
         "open": open_count,
